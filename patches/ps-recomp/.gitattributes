@@ -1,0 +1,2 @@
+# Git for Windows must not rewrite patch payloads to CRLF.
+*.patch text eol=lf

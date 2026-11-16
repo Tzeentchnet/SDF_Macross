@@ -22,6 +22,8 @@ $ToolRoot = Join-Path $Root ".tools"
 $BuildRoot = Join-Path $Root ".build"
 $LocalRoot = Join-Path $Root ".local"
 
+. (Join-Path $PSScriptRoot "framework-patches.ps1")
+
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)]
@@ -35,14 +37,33 @@ function Invoke-Checked {
 
     Push-Location $WorkingDirectory
     try {
+        # Native tools may write progress or warnings to stderr even when they
+        # succeed. Check the exit code ourselves on both PowerShell versions.
+        $ErrorActionPreference = "Continue"
+        $PSNativeCommandUseErrorActionPreference = $false
+        $global:LASTEXITCODE = $null
         & $FilePath @ArgumentList
-        if ($LASTEXITCODE -ne 0) {
-            throw "$FilePath failed with exit code $LASTEXITCODE"
+        if ($null -eq $global:LASTEXITCODE) {
+            throw "$FilePath could not be started"
+        }
+        if ($global:LASTEXITCODE -ne 0) {
+            throw "$FilePath failed with exit code $global:LASTEXITCODE"
         }
     }
     finally {
         Pop-Location
     }
+}
+
+function Invoke-CheckedGit {
+    param([Parameter(Mandatory = $true)] [string[]]$ArgumentList)
+
+    $result = Invoke-FrameworkGit -Arguments $ArgumentList
+    if ($result.ExitCode -ne 0) {
+        throw "git failed with exit code $($result.ExitCode)$(Get-FrameworkGitError $result)"
+    }
+    if ($result.StdOut.Trim()) { Write-Host $result.StdOut.Trim() }
+    if ($result.StdErr.Trim()) { Write-Host $result.StdErr.Trim() }
 }
 
 function Get-Odin {
@@ -71,33 +92,29 @@ function Get-Framework {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $FrameworkPath) |
         Out-Null
     if (-not (Test-Path -LiteralPath (Join-Path $FrameworkPath ".git"))) {
-        Invoke-Checked "git" @(
+        Invoke-CheckedGit @(
             "clone",
             "--filter=blob:none",
             "--no-checkout",
             $Lock.framework.repository,
             $FrameworkPath
         )
-    }
-    Invoke-Checked "git" @(
-        "-C",
-        $FrameworkPath,
-        "fetch",
-        "--depth",
-        "1",
-        "origin",
-        $Lock.framework.commit
-    )
-    Invoke-Checked "git" @(
-        "-C",
-        $FrameworkPath,
-        "checkout",
-        "--detach",
-        $Lock.framework.commit
-    )
-    $actual = (& git -C $FrameworkPath rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or $actual -ne $Lock.framework.commit) {
-        throw "Framework checkout mismatch: found $actual"
+        Invoke-CheckedGit @(
+            "-C",
+            $FrameworkPath,
+            "fetch",
+            "--depth",
+            "1",
+            "origin",
+            $Lock.framework.commit
+        )
+        Invoke-CheckedGit @(
+            "-C",
+            $FrameworkPath,
+            "checkout",
+            "--detach",
+            $Lock.framework.commit
+        )
     }
 }
 
@@ -115,6 +132,11 @@ if ($AllowPatchedImage) {
 Invoke-Checked $Python $VerifyArguments
 
 Get-Framework
+$FrameworkPatchFingerprint = Get-FrameworkPatchFingerprint -Root $Root
+Invoke-FrameworkPatches -Root $Root -FrameworkPath $FrameworkPath -Lock $Lock
+if ((Get-FrameworkPatchFingerprint -Root $Root) -cne $FrameworkPatchFingerprint) {
+    throw "Framework patches changed during setup; retry."
+}
 $Odin = Get-Odin
 New-Item -ItemType Directory -Force -Path $BuildRoot, $LocalRoot | Out-Null
 
@@ -132,10 +154,20 @@ if (Test-Path -LiteralPath $Generated) {
     Remove-Item -LiteralPath $Generated -Recurse -Force
 }
 $RecompConfig = Join-Path $BuildRoot "recomp.tsv"
-$ConfigText = Get-Content -LiteralPath (Join-Path $PSScriptRoot "recomp.tsv") -Raw
+$Template = Join-Path $PSScriptRoot "recomp.tsv"
+$TemplateFingerprint = (Get-FileHash -LiteralPath $Template -Algorithm SHA256).Hash
+$ConfigText = Get-Content -LiteralPath $Template -Raw
+if ((Get-FileHash -LiteralPath $Template -Algorithm SHA256).Hash -ne $TemplateFingerprint) {
+    throw "Recompiler configuration changed during setup; retry."
+}
 $ConfigText += "disc`t$ImagePath`n"
 [System.IO.File]::WriteAllText($RecompConfig, $ConfigText)
+$ConfigFingerprint = (Get-FileHash -LiteralPath $RecompConfig -Algorithm SHA256).Hash
 Invoke-Checked $Recompiler @($RecompConfig)
+Write-FrameworkGenerationProvenance -Root $Root -Lock $Lock `
+    -ExpectedPatchFingerprint $FrameworkPatchFingerprint `
+    -ExpectedTemplateFingerprint $TemplateFingerprint `
+    -ExpectedConfigFingerprint $ConfigFingerprint
 
 $RuntimeData = Join-Path $LocalRoot "runtime"
 New-Item -ItemType Directory -Force -Path $RuntimeData | Out-Null

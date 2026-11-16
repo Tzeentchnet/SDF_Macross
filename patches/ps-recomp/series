@@ -1,0 +1,4 @@
+# Blank and tab-indented context is kept as matching -/+ lines so the patch
+# files themselves pass git diff --check.
+0001-padman-button-mask-and-warning-level.patch
+0002-disc-read-hook.patch
