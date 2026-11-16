@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import BinaryIO
 
 from disc_image import (
     DiscFormatError,
@@ -42,12 +43,17 @@ SYMBOL_PATTERNS = [
 ]
 
 
-def sha256_file(path: Path) -> str:
+def sha256_stream(stream: BinaryIO) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
+    stream.seek(0)
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(chunk)
     return digest.hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    with path.open("rb") as stream:
+        return sha256_stream(stream)
 
 
 def identify_header(data: bytes) -> str:
@@ -165,84 +171,101 @@ def inspect(
     exhaustive_zero_check: bool,
     allow_patched: bool,
 ) -> tuple[dict, list[str]]:
-    errors: list[str] = []
     stat = path.stat()
     stream, image = IsoImage.open(path)
     try:
-        files = [entry for entry in image.entries() if not entry.is_directory]
-        outer_records = [entry_record(image, entry) for entry in files]
-        try:
-            system_cnf_entry = image.find("SYSTEM.CNF")
-            system = parse_system_cnf(image.read_entry(system_cnf_entry))
-        except KeyError:
-            system = {}
-            errors.append("SYSTEM.CNF is missing")
-        if system.get("BOOT2") != EXPECTED_BOOT:
-            errors.append(
-                f"unexpected BOOT2: {system.get('BOOT2')!r}, expected {EXPECTED_BOOT!r}"
-            )
-
-        try:
-            elf_entry = image.find("SLPM_654.05")
-            elf_data = image.read_entry(elf_entry)
-            elf_sha1 = hashlib.sha1(elf_data).hexdigest()
-            elf_sha256 = hashlib.sha256(elf_data).hexdigest()
-            if elf_entry.size != KNOWN_ELF_SIZE:
-                errors.append(
-                    f"ELF size is {elf_entry.size}, expected {KNOWN_ELF_SIZE}"
-                )
-            if elf_sha1 != KNOWN_ELF_SHA1 and not allow_patched:
-                errors.append(
-                    f"ELF SHA-1 is {elf_sha1}, expected {KNOWN_ELF_SHA1}"
-                )
-            elf = Elf32(elf_data).summary(SYMBOL_PATTERNS)
-        except KeyError:
-            elf_sha1 = elf_sha256 = ""
-            elf = {}
-            errors.append("SLPM_654.05 is missing")
-        except ElfFormatError as error:
-            elf_sha1 = elf_sha256 = ""
-            elf = {}
-            errors.append(f"ELF parse failed: {error}")
-
-        containers = [
-            analyze_container(image, entry, exhaustive_zero_check)
-            for entry in files
-            if entry.path.upper().endswith(".CVM")
-        ]
-        report = {
-            "schemaVersion": 1,
-            "source": {
-                "path": str(path.resolve()),
-                "size": stat.st_size,
-                "exactDiscSha256": sha256_file(path) if exact else None,
-            },
-            "iso9660": {
-                "volumeId": image.volume_id,
-                "volumeSectors": image.volume_sectors,
-                "systemCnf": system,
-                "fileCount": len(files),
-                "files": outer_records,
-            },
-            "executable": {
-                "sha1": elf_sha1,
-                "sha256": elf_sha256,
-                "matchesOriginal": elf_sha1 == KNOWN_ELF_SHA1,
-                "patchedImageAllowed": allow_patched,
-                "elf": elf,
-            },
-            "containers": containers,
-        }
-        if stat.st_size != KNOWN_DISC_SIZE:
-            errors.append(f"disc size is {stat.st_size}, expected {KNOWN_DISC_SIZE}")
-        if exact and report["source"]["exactDiscSha256"] != KNOWN_DISC_SHA256:
-            errors.append(
-                "disc SHA-256 is "
-                f"{report['source']['exactDiscSha256']}, expected {KNOWN_DISC_SHA256}"
-            )
-        return report, errors
+        return _inspect_image(
+            image, path, stat.st_size, exact, exhaustive_zero_check, allow_patched
+        )
     finally:
         stream.close()
+
+
+def _inspect_image(
+    image: IsoImage,
+    path: Path,
+    size: int,
+    exact: bool,
+    exhaustive_zero_check: bool,
+    allow_patched: bool,
+) -> tuple[dict, list[str]]:
+    errors: list[str] = []
+    files = [entry for entry in image.entries() if not entry.is_directory]
+    outer_records = [entry_record(image, entry) for entry in files]
+    try:
+        system_cnf_entry = image.find("SYSTEM.CNF")
+        if system_cnf_entry.is_directory:
+            raise KeyError("SYSTEM.CNF")
+        system = parse_system_cnf(image.read_entry(system_cnf_entry))
+    except KeyError:
+        system = {}
+        errors.append("SYSTEM.CNF is missing")
+    if system.get("BOOT2") != EXPECTED_BOOT:
+        errors.append(
+            f"unexpected BOOT2: {system.get('BOOT2')!r}, expected {EXPECTED_BOOT!r}"
+        )
+
+    try:
+        elf_entry = image.find("SLPM_654.05")
+        if elf_entry.is_directory:
+            raise KeyError("SLPM_654.05")
+        elf_data = image.read_entry(elf_entry)
+        elf_sha1 = hashlib.sha1(elf_data).hexdigest()
+        elf_sha256 = hashlib.sha256(elf_data).hexdigest()
+        if elf_entry.size != KNOWN_ELF_SIZE:
+            errors.append(
+                f"ELF size is {elf_entry.size}, expected {KNOWN_ELF_SIZE}"
+            )
+        if elf_sha1 != KNOWN_ELF_SHA1 and not allow_patched:
+            errors.append(
+                f"ELF SHA-1 is {elf_sha1}, expected {KNOWN_ELF_SHA1}"
+            )
+        elf = Elf32(elf_data).summary(SYMBOL_PATTERNS)
+    except KeyError:
+        elf_sha1 = elf_sha256 = ""
+        elf = {}
+        errors.append("SLPM_654.05 is missing")
+    except ElfFormatError as error:
+        elf_sha1 = elf_sha256 = ""
+        elf = {}
+        errors.append(f"ELF parse failed: {error}")
+
+    containers = [
+        analyze_container(image, entry, exhaustive_zero_check)
+        for entry in files
+        if entry.path.upper().endswith(".CVM")
+    ]
+    report = {
+        "schemaVersion": 1,
+        "source": {
+            "path": str(path.resolve()),
+            "size": size,
+            "exactDiscSha256": sha256_stream(image.stream) if exact else None,
+        },
+        "iso9660": {
+            "volumeId": image.volume_id,
+            "volumeSectors": image.volume_sectors,
+            "systemCnf": system,
+            "fileCount": len(files),
+            "files": outer_records,
+        },
+        "executable": {
+            "sha1": elf_sha1,
+            "sha256": elf_sha256,
+            "matchesOriginal": elf_sha1 == KNOWN_ELF_SHA1,
+            "patchedImageAllowed": allow_patched,
+            "elf": elf,
+        },
+        "containers": containers,
+    }
+    if size != KNOWN_DISC_SIZE:
+        errors.append(f"disc size is {size}, expected {KNOWN_DISC_SIZE}")
+    if exact and report["source"]["exactDiscSha256"] != KNOWN_DISC_SHA256:
+        errors.append(
+            "disc SHA-256 is "
+            f"{report['source']['exactDiscSha256']}, expected {KNOWN_DISC_SHA256}"
+        )
+    return report, errors
 
 
 def print_summary(report: dict, errors: list[str]) -> None:
