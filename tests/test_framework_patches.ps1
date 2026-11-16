@@ -527,7 +527,12 @@ main :: proc() {
             Write-TestText $f.Patch2 (Invoke-TestGit $f.Framework @("diff", "--binary", "--full-index", "--"))
             [void](Invoke-TestGit $f.Framework @("reset", "--hard", "--quiet", "HEAD"))
 
-            foreach ($script in @("setup.ps1", "build.ps1", "framework-patches.ps1")) {
+            foreach ($script in @(
+                "setup.ps1",
+                "setup-verification.ps1",
+                "build.ps1",
+                "framework-patches.ps1"
+            )) {
                 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "tools\$script") `
                     -Destination (Join-Path $f.Root "tools\$script")
             }
