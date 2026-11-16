@@ -3,3 +3,4 @@
 0001-padman-button-mask-and-warning-level.patch
 0002-disc-read-hook.patch
 0003-vulkan-presentation-and-fsr1.patch
+0004-adaptive-audio-pacing.patch
