@@ -1,0 +1,5 @@
+key	value
+backend	r5900
+runtime	ps:ps2
+out	port/src/rec
+quiet	true

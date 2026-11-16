@@ -1,0 +1,27 @@
+{
+  "framework": {
+    "name": "ps-recomp",
+    "repository": "https://github.com/plaught-armor/ps-recomp.git",
+    "commit": "8ab7c5b081fa59f761783787216b067d48120374",
+    "commitDate": "2026-11-13T11:31:25Z",
+    "verifiedAt": "2026-11-16T09:32:11Z",
+    "license": "GPL-3.0"
+  },
+  "odin": {
+    "tag": "dev-2026-10",
+    "asset": "odin-windows-amd64-dev-2026-10.zip",
+    "url": "https://github.com/odin-lang/Odin/releases/download/dev-2026-10/odin-windows-amd64-dev-2026-10.zip",
+    "sha256": "b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011"
+  },
+  "translation": {
+    "repository": "https://github.com/chummy778/Macross-PS2-Fan-Translation-Tooling.git",
+    "commit": "4339a4485149a52aa2b0633e093511d452885fb5",
+    "license": null,
+    "integration": "external-checkout-only"
+  },
+  "cricmp": {
+    "repository": "https://github.com/zeesworth/cricmp.git",
+    "commit": "5faf238dea4157ca6ff72c4b1342bfb90ed0b590",
+    "license": "LGPL-2.1"
+  }
+}

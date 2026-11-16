@@ -1,0 +1,16 @@
+/.build/
+/.deps/
+/.local/
+/.tools/
+/local.tsv
+/port/src/rec/
+/port/*.dll
+/port/*.exe
+/port/*.pdb
+/work/
+__pycache__/
+*.pyc
+*.iso
+*.bin
+*.elf
+*.map

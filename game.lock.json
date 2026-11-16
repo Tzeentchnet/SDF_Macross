@@ -1,0 +1,16 @@
+{
+  "title": "Chou Jikuu Yousai Macross (Japan)",
+  "serial": "SLPM-65405",
+  "region": "Japan",
+  "videoMode": "NTSC",
+  "disc": {
+    "size": 1230897152,
+    "sha256": "221e4137cc1b197b262c58604143d92d2fdb3dd82d6b464870c6bbf1c68a27df"
+  },
+  "executable": {
+    "path": "SLPM_654.05",
+    "size": 4262380,
+    "sha1": "84ff167ee9612966e5027beabb7b920e7cf18920",
+    "sha256": "5e51cf5ecb8f344ccab90f7d99df04ff050fadba025579e4369c4abe0ebe75a1"
+  }
+}
