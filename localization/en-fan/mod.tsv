@@ -1,0 +1,6 @@
+key	value
+name	English (optional local fan translation)
+author	Supplied locally by the player
+description	Optional locally supplied translation with project-authored system messages.
+ascii_punctuation	1
+include	en-system

@@ -46,15 +46,6 @@ local_read :: proc() -> (l: Local) {
 	return
 }
 
-// The repository's settings.tsv, then the player's settings for every disc,
-// into the environment; not for a COMPAT run, as in the player. Exits after
-// a message on a failure.
-settings :: proc(l: Local) {
-	if core.env("COMPAT") != "1" && !core.settings_apply(l.root) {
-		os.exit(1)
-	}
-}
-
 // The player's blob of learned code for the disc, when it was made by the
 // ps-recomp commit the port is built from; else "" (that code is
 // interpreted).

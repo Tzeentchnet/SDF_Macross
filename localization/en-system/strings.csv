@@ -1,0 +1,75 @@
+﻿key,en,notes
+exe.003b9408,System data,
+exe.003c8590,"In MEMORY CARD slot 1, the ",
+exe.003c85c0,"In MEMORY CARD slot 2, the ",
+exe.003c85f0,"In MEMORY CARD slots 1 and 2,
+the ",
+exe.003c8660,"No memory card (PS2) is inserted in
+MEMORY CARD slot 1 or slot 2.
+",
+exe.003c8780," of free space is required.
+Insert a memory card (PS2) with enough
+free space into MEMORY CARD slot 1 or 2.
+Start the game anyway?",
+exe.003c8880,"%smemory card (PS2) lacks enough free space.
+",
+exe.003c8b60,MEMORY CARD slot 1,
+exe.003c8b80,MEMORY CARD slot 2,
+exe.003c8d20,"No memory card (PS2) is inserted.
+Saving needs at least %sKB of free space.",
+exe.003c8f20,Saving...,
+exe.003c9280,Loading...,
+exe.003c9470,Formatting...,
+exe.003c97e0,"No memory card (PS2) is inserted.
+Insert the memory card (PS2) chosen at
+the start of the game into slot %s.
+Press × to cancel saving.",
+exe.003c9bb0,"Cannot read the application data on the
+""PlayStation BB Unit"". From now on it
+will be read from the DVD-ROM.",
+exe.003c9c90,"Cancel the installation?
+",
+exe.003c9cb0,"The installation is complete.
+",
+exe.003c9ce0,"Install the application data now?
+Is that OK?",
+exe.003c9d30,"The application data is already installed
+on the ""PlayStation BB Unit"".",
+exe.003c9d90,"Not enough free space on the
+""PlayStation BB Unit"". Installing needs
+at least %s of free space.",
+exe.003c9e10,"The installation failed.
+Cancel the installation?",
+exe.003c9eb0,The uninstallation is complete.,
+exe.003c9ee0,"Uninstall the application data now?
+Is that OK?",
+exe.003c9f30,"The uninstallation failed.
+Cancel the uninstallation?",
+exe.003c9f80,"The application data is not installed
+on the ""PlayStation BB Unit"".",
+exe.003ca380,"Center the twist handle,
+then press a button.",
+exe.003ca550,"Joystick calibration
+is complete.",
+exe.003ca6b0,"Not enough free space in the save area
+of the ""PlayStation BB Unit"".
+Saving needs at least %sKB of free space.",
+exe.003ca9a0,Yes,
+exe.003ca9c8,No,
+exe.003caa88,New file,
+exe.003caae0,Damaged data,
+exe.003cab08,OK,
+exe.003cab18,Back,
+exe.003cab28,Cancel,
+exe.003cab38,Test,
+exe.003cab48,Button,
+exe.003cab58,Trigger,
+exe.003cab70,128 MB,
+exe.003cab80,256 MB,
+exe.003cab90,512 MB,
+exe.003caba0,1 GB,
+exe.003cabb0,2 GB,
+exe.003cabc0,4 GB,
+exe.003cabd0,8 GB,
+exe.003cabe0,16 GB,
+exe.003cabf0,32 GB,
