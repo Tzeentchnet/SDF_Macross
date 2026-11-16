@@ -1,0 +1,1034 @@
+diff --git a/core/audio.odin b/core/audio.odin
+index b41e1376fb29f38304f94f40411aa2160b780b46..6138014844d1af83ab9e42d094106d7dc47b1918 100644
+--- a/core/audio.odin
++++ b/core/audio.odin
+@@ -1,391 +1,412 @@
+ // Host audio: the console's mixed sound queued to an SDL device, and an
+ // optional WAV copy of it.
+ //
+ // The console mixes at its own fixed rate, in step with emulated time
+ // (exactly one frame's worth per frame, or one batch per batch event), and
+ // hands every batch to audio_push. How far its voices advance must never
+ // depend on the host: everything here sits after the mix and feeds nothing
+ // back. On the way to the device:
+ // - the queue is kept at a target set by the latency setting; up to
+ //   AUDIO_RATE_MAX faster or slower playback (cubic resampling) absorbs
+ //   drift between the emulated clock and the sound card's. A steady
+ //   difference (a display's vsync setting emulated time, a sound card's
+ //   crystal) is learnt as `drift`, the integral of the queue's error, so
+ //   the queue holds its target instead of sitting off it far enough for the
+ //   proportional part to make up the difference;
+ // - below speed 1 the sound is stretched to fill real time, playing lower
+ //   and slower in step with the picture;
+-// - a queue past the target plus two frames of slack drops the batch, and
+-//   one that ran dry is refilled with silence to the target at once, or the
+-//   rate correction would take seconds and every frame would click.
++// - one that ran dry is refilled with silence to the target at once, or the
++//   rate correction would take seconds and every frame would click. Paced
++//   audio may grow to the maximum supported latency rather than delete a
++//   batch after a transient stall; fast-forward still drops above the target.
+ package core
+-
++
+ import "core:fmt"
+ import "core:os"
+ import sdl "vendor:sdl2"
+-
++
+ // Range of the output latency setting, in ms: queued sound plus the device's
+ // own buffer.
+ AUDIO_LATENCY_MIN :: 20
+ AUDIO_LATENCY_MAX :: 250
+-
++
+ // The latency both hosts open the device with.
+ AUDIO_LATENCY_MS :: 50
+-
++
+ // Largest playback rate correction that keeps the queue at its target: 0.5%,
+ // about 9 cents of pitch.
+ AUDIO_RATE_MAX :: 0.005
+-
++
+ // Whether the queue can follow sound mixed `ratio` times as fast as it
+ // plays (a display clock over the console's): within AUDIO_RATE_MAX, with
+ // 0.1% left for the proportional correction.
+ audio_rate_fits :: proc(ratio: f64) -> bool {
+-	return abs(ratio - 1) <= AUDIO_RATE_MAX - 0.001
++	return abs(ratio - 1) <= AUDIO_RATE_MAX - 0.001
+ }
+-
++
+ // Seconds over which a steady queue error moves drift by its own size times
+ // AUDIO_RATE_MAX: slow beside the proportional part (about 8 s at a 50 ms
+ // latency), so the two do not ring.
+ AUDIO_DRIFT_S :: 10.0
+-
++
+ // Slowest emulated speed audio_push stretches for.
+ AUDIO_MIN_SPEED :: 0.25
+-
++
+-// Interlaced games can alternate light and heavy fields. Average a few host
+-// intervals before adjusting playback speed, or an asymmetric attack/recovery
+-// filter biases the estimate toward the heavy fields.
++// Interlaced games can alternate light and heavy fields. Average disjoint
++// groups so every interval contributes once and paired fields stay together.
+ AUDIO_SPEED_SAMPLES :: 4
+-
++
++// A host this slow would consume most of the queued latency while waiting for
++// a second timing window, so react after the first one.
++AUDIO_SPEED_IMMEDIATE :: 0.8
++
+ Audio_Speed :: struct {
+-	value:   f64,
+-	elapsed: [AUDIO_SPEED_SAMPLES]f64,
+-	total:   f64,
+-	count:   int,
+-	next:    int,
++	value:     f64,
++	elapsed:   f64,
++	count:     int,
++	candidate: f64,
++	sustained: bool,
+ }
+-
++
+ audio_speed_update :: proc(state: ^Audio_Speed, expected_seconds, elapsed_seconds: f64) -> f64 {
+-	if expected_seconds <= 0 || elapsed_seconds <= 0 || elapsed_seconds > expected_seconds * 4 {
++	if expected_seconds <= 0 || elapsed_seconds <= 0 || elapsed_seconds > expected_seconds * 4 {
++		state.elapsed, state.count, state.candidate = 0, 0, 0
+-		return state.value
++		return state.value
+-	}
++	}
+-	if state.count == AUDIO_SPEED_SAMPLES {
+-		state.total -= state.elapsed[state.next]
+-	} else {
+-		state.count += 1
++	state.elapsed += elapsed_seconds
++	state.count += 1
++	if state.count < AUDIO_SPEED_SAMPLES {
++		return state.value
+-	}
++	}
+-	state.elapsed[state.next] = elapsed_seconds
+-	state.total += elapsed_seconds
+-	state.next = (state.next + 1) % AUDIO_SPEED_SAMPLES
+-
++
+-	target := clamp(expected_seconds * f64(state.count) / state.total, AUDIO_MIN_SPEED, 1)
+-	if target > 0.98 {target = 1}
+-	weight := target < state.value ? 0.5 : 0.125
+-	state.value += (target - state.value) * weight
+-	if state.value > 0.995 {state.value = 1}
++	target := clamp(expected_seconds * f64(state.count) / state.elapsed, AUDIO_MIN_SPEED, 1)
++	state.elapsed, state.count = 0, 0
++	if target > 0.98 {
++		state.value, state.candidate, state.sustained = 1, 0, false
++		return state.value
++	}
++	if target < AUDIO_SPEED_IMMEDIATE || state.sustained {
++		state.value, state.candidate, state.sustained = target, 0, true
++		return state.value
++	}
++	// A moderate one-window delay is usually scheduler jitter. Two consecutive
++	// windows establish sustained slowness; their harmonic mean combines their
++	// equal expected durations.
++	if state.candidate == 0 {
++		state.candidate = target
++		return state.value
++	}
++	state.value = 2 / (1 / state.candidate + 1 / target)
++	state.candidate, state.sustained = 0, true
+-	return state.value
++	return state.value
+ }
+-
++
+ // Batches are resampled this many input frames at a time.
+ @(private = "file")
+ AUDIO_CHUNK :: 256
+-
++
+ // One chunk stretched for the slowest speed, plus one frame for the rate
+ // correction and one for the fractional frame a stretch carries over.
+ @(private = "file")
+ AUDIO_STRETCH_MAX :: int(AUDIO_CHUNK / AUDIO_MIN_SPEED) + 2
+-
++
+ Audio_Pace :: enum {
+-	// Real time: keep the queue at its target.
++	// Real time: keep the queue at its target.
+-	Paced,
++	Paced,
+-	// Fast-forward: drop batches from the target on, so the queue is not
++	// Fast-forward: drop batches from the target on, so the queue is not
+-	// left long when pacing resumes.
++	// left long when pacing resumes.
+-	Fast,
++	Fast,
+-	// Unpaced or skipping: queue nothing (it would only be dropped).
++	// Unpaced or skipping: queue nothing (it would only be dropped).
+-	Off,
++	Off,
+ }
+-
++
+ // Counted since the last audio_take_stats, for the game's .Perf report.
+ Audio_Stats :: struct {
+-	// Frames mixed: over the emulated time run, they should come to the mix
++	// Frames mixed: over the emulated time run, they should come to the mix
+-	// rate, which the host can only correct AUDIO_RATE_MAX off.
++	// rate, which the host can only correct AUDIO_RATE_MAX off.
+-	mixed:   int,
++	mixed:   int,
+-	// Times the queue ran dry, and batches dropped for a queue over target.
++	// Times the queue ran dry, and batches dropped for a queue over target.
+-	dry:     int,
++	dry:     int,
+-	dropped: int,
++	dropped: int,
+-	// The lowest the queue was when a batch came, in ms (0 with none).
++	// The lowest the queue was when a batch came, in ms (0 with none).
+-	low_ms:  f64,
++	low_ms:  f64,
+-	// The learnt rate difference at the time of the report (audio.rate_ctl.drift).
++	// The learnt rate difference at the time of the report (audio.rate_ctl.drift).
+-	drift:   f64,
++	drift:   f64,
+ }
+-
++
+ audio: struct {
+-	rate:         int,
++	rate:         int,
+-	dev:          sdl.AudioDeviceID,
++	dev:          sdl.AudioDeviceID,
+-	// The audio subsystem started; audio_apply opens the device.
++	// The audio subsystem started; audio_apply opens the device.
+-	ok:           bool,
++	ok:           bool,
+-	// Frames to keep in the queue, from the latency setting.
++	// Frames to keep in the queue, from the latency setting.
+-	target:       int,
++	target:       int,
+-	stats:        Audio_Stats,
++	stats:        Audio_Stats,
+-	low:          int,
++	low:          int,
+-	// The rate correction's state.
++	// The rate correction's state.
+-	rate_ctl:     Audio_Rate,
++	rate_ctl:     Audio_Rate,
+-	// Resampling state: output position within the chunk being read (in
++	// Resampling state: output position within the chunk being read (in
+-	// input frames), and the last three input frames of the previous chunk,
++	// input frames), and the last three input frames of the previous chunk,
+-	// oldest first.
++	// oldest first.
+-	stretch_pos:  f64,
++	stretch_pos:  f64,
+-	stretch_prev: [3][2]i16,
++	stretch_prev: [3][2]i16,
+-	stretch_buf:  [AUDIO_STRETCH_MAX][2]i16,
++	stretch_buf:  [AUDIO_STRETCH_MAX][2]i16,
+-	silence:      [1024][2]i16,
++	silence:      [1024][2]i16,
+-	dump:         ^os.File,
++	dump:         ^os.File,
+-	dump_bytes:   int,
++	dump_bytes:   int,
+ }
+-
++
+ // Start audio at the console's mix rate. With `device` false (headless
+ // runs) no device is opened. `dump` names a WAV file that receives
+ // everything mixed, valid at every second of sound so a killed run still
+ // leaves a readable file; one that cannot be created is an error. A missing
+ // device only leaves the game silent.
+ audio_init :: proc(rate: int, dump := "", device := true) -> bool {
+-	audio.rate = rate
++	audio.rate = rate
+-	audio.low = max(int)
++	audio.low = max(int)
+-	if dump != "" {
++	if dump != "" {
+-		f, err := os.create(dump)
++		f, err := os.create(dump)
+-		if err != nil {
++		if err != nil {
+-			fmt.eprintln("audio dump: cannot create", dump, err)
++			fmt.eprintln("audio dump: cannot create", dump, err)
+-			return false
++			return false
+-		}
++		}
+-		audio.dump = f
++		audio.dump = f
+-		audio_wav_header()
++		audio_wav_header()
+-	}
++	}
+-	if !device {
++	if !device {
+-		return true
++		return true
+-	}
++	}
+-	if sdl.InitSubSystem({.AUDIO}) != 0 {
++	if sdl.InitSubSystem({.AUDIO}) != 0 {
+-		fmt.eprintln("audio disabled: SDL_InitSubSystem:", sdl.GetError())
++		fmt.eprintln("audio disabled: SDL_InitSubSystem:", sdl.GetError())
+-		return true
++		return true
+-	}
++	}
+-	audio.ok = true
++	audio.ok = true
+-	return true
++	return true
+ }
+-
++
+ // Open the output device for about `latency_ms` from a sound being mixed to
+ // it reaching the speakers (plus whatever the OS mixer adds). The device
+ // buffer takes about a quarter of it, as a power of two of 256 frames or
+ // more; the queue is kept at the rest.
+ audio_apply :: proc(latency_ms: int) {
+-	assert(latency_ms >= AUDIO_LATENCY_MIN && latency_ms <= AUDIO_LATENCY_MAX)
++	assert(latency_ms >= AUDIO_LATENCY_MIN && latency_ms <= AUDIO_LATENCY_MAX)
+-	total := audio.rate * latency_ms / 1000
++	total := audio.rate * latency_ms / 1000
+-	samples := 256
++	samples := 256
+-	for samples * 2 <= total / 4 && samples < 4096 {
++	for samples * 2 <= total / 4 && samples < 4096 {
+-		samples *= 2
++		samples *= 2
+-	}
++	}
+-	audio.target = total - samples
++	audio.target = total - samples
+-	if !audio.ok {
++	if !audio.ok {
+-		return
++		return
+-	}
++	}
+-	if audio.dev != 0 {
++	if audio.dev != 0 {
+-		sdl.CloseAudioDevice(audio.dev)
++		sdl.CloseAudioDevice(audio.dev)
+-	}
++	}
+-	want := sdl.AudioSpec {
++	want := sdl.AudioSpec {
+-		freq     = i32(audio.rate),
++		freq     = i32(audio.rate),
+-		format   = sdl.AUDIO_S16LSB,
++		format   = sdl.AUDIO_S16LSB,
+-		channels = 2,
++		channels = 2,
+-		samples  = u16(samples),
++		samples  = u16(samples),
+-	}
++	}
+-	audio.dev = sdl.OpenAudioDevice(nil, false, &want, nil, {})
++	audio.dev = sdl.OpenAudioDevice(nil, false, &want, nil, {})
+-	if audio.dev == 0 {
++	if audio.dev == 0 {
+-		fmt.eprintln("audio disabled: SDL_OpenAudioDevice:", sdl.GetError())
++		fmt.eprintln("audio disabled: SDL_OpenAudioDevice:", sdl.GetError())
+-		return
++		return
+-	}
++	}
+-	sdl.PauseAudioDevice(audio.dev, false)
++	sdl.PauseAudioDevice(audio.dev, false)
+ }
+-
++
+ // A batch of mixed sound, at emulated speed `speed`.
+ audio_push :: proc(frames: [][2]i16, speed: f64 = 1, pace: Audio_Pace = .Paced) {
+-	audio.stats.mixed += len(frames)
++	audio.stats.mixed += len(frames)
+-	audio_dump(frames)
++	audio_dump(frames)
+-	if audio.dev == 0 || pace == .Off {
++	if audio.dev == 0 || pace == .Off {
+-		return
++		return
+-	}
++	}
+-	queued := int(sdl.GetQueuedAudioSize(audio.dev)) / size_of([2]i16)
++	queued := int(sdl.GetQueuedAudioSize(audio.dev)) / size_of([2]i16)
+-	audio.low = min(audio.low, queued)
++	audio.low = min(audio.low, queued)
+-	// Queue beyond the target before batches are dropped: two frames of
+-	// sound at 60 Hz. Paced emulation makes a frame's sound in one burst, so
+-	// the queue swings by one frame; it outgrows this only while emulation
+-	// runs ahead.
+-	slack := pace == .Fast ? 0 : audio.rate * 2 / 60
+-	if queued > audio.target + slack {
++	if !audio_queue_can_accept(pace, queued, audio.target, audio.rate) {
+-		if pace != .Fast {
++		if pace != .Fast {
+-			audio.stats.dropped += 1
++			audio.stats.dropped += 1
+-		}
++		}
+-		return
++		return
+-	}
++	}
+-	if queued == 0 {
++	if queued == 0 {
+-		audio.stats.dry += 1
++		audio.stats.dry += 1
+-		if .Perf in trace.active {
++		if .Perf in trace.active {
+-			tracef(.Perf, "audio ran dry")
++			tracef(.Perf, "audio ran dry")
+-		}
++		}
+-		for n := audio.target; n > 0; n -= len(audio.silence) {
++		for n := audio.target; n > 0; n -= len(audio.silence) {
+-			audio_queue(audio.silence[:min(n, len(audio.silence))])
++			audio_queue(audio.silence[:min(n, len(audio.silence))])
+-		}
++		}
+-	}
++	}
+-	step := audio_step(&audio.rate_ctl, queued, audio.target, len(frames), audio.rate, speed)
++	step := audio_step(&audio.rate_ctl, queued, audio.target, len(frames), audio.rate, speed)
+-	for i := 0; i < len(frames); i += AUDIO_CHUNK {
++	for i := 0; i < len(frames); i += AUDIO_CHUNK {
+-		audio_queue(audio_resample(frames[i:][:min(AUDIO_CHUNK, len(frames) - i)], step))
++		audio_queue(audio_resample(frames[i:][:min(AUDIO_CHUNK, len(frames) - i)], step))
+-	}
++	}
+ }
+-
++
++// Fast-forward keeps no excess queued sound. Paced playback instead keeps
++// transient catch-up audio intact unless the queue reaches the largest
++// supported latency, where dropping bounds memory and device delay.
++audio_queue_can_accept :: proc(pace: Audio_Pace, queued, target, rate: int) -> bool {
++	if pace == .Fast {
++		return queued <= target
++	}
++	return queued <= rate * AUDIO_LATENCY_MAX / 1000
++}
++
+ // The rate correction's state, carried from batch to batch.
+ Audio_Rate :: struct {
+-	// Learnt steady rate difference: the playback speed-up, beyond the
++	// Learnt steady rate difference: the playback speed-up, beyond the
+-	// proportional correction, that holds the queue at its target.
++	// proportional correction, that holds the queue at its target.
+-	drift:  f64,
++	drift:  f64,
+-	// Frames of sound still to push before drift learns again.
++	// Frames of sound still to push before drift learns again.
+-	settle: int,
++	settle: int,
+ }
+-
++
+ // Input frames per output frame for a batch of n frames with `queued`
+ // frames waiting against `target`. The correction is the proportional part
+ // plus drift, at most AUDIO_RATE_MAX either way. Drift integrates the
+ // queue's error per second of sound, so batch size does not matter. It
+ // holds while the queue says nothing about the clocks: under a quarter of
+ // its target, for a second of sound after it ran dry (a load, a slow frame,
+ // a debugger stop; slowness that keeps it running dry keeps drift held) or
+ // after audio_settle, and off speed 1: past it the step stays 1 and the
+ // excess is dropped, under it the host's speed is no clock's. It also holds
+ // while the correction is already past AUDIO_RATE_MAX the way the error
+ // pushes it (conditional integration): the step is at its bound, so more
+ // drift would only wind up and overshoot once the error is gone.
+ audio_step :: proc(r: ^Audio_Rate, queued, target, n, rate: int, speed: f64) -> f64 {
+-	if queued == 0 {
++	if queued == 0 {
+-		r.settle = rate
++		r.settle = rate
+-	}
++	}
+-	error := clamp(f64(queued - target) / f64(max(target, 1)), -1, 1)
++	error := clamp(f64(queued - target) / f64(max(target, 1)), -1, 1)
+-	correction := r.drift + AUDIO_RATE_MAX * error
++	correction := r.drift + AUDIO_RATE_MAX * error
+-	saturated := correction * error > 0 && abs(correction) > AUDIO_RATE_MAX
++	saturated := correction * error > 0 && abs(correction) > AUDIO_RATE_MAX
+-	if r.settle <= 0 && speed == 1 && queued >= target / 4 && !saturated {
++	if r.settle <= 0 && speed == 1 && queued >= target / 4 && !saturated {
+-		r.drift = clamp(r.drift + AUDIO_RATE_MAX * error * f64(n) / (f64(rate) * AUDIO_DRIFT_S), -AUDIO_RATE_MAX, AUDIO_RATE_MAX)
++		r.drift = clamp(r.drift + AUDIO_RATE_MAX * error * f64(n) / (f64(rate) * AUDIO_DRIFT_S), -AUDIO_RATE_MAX, AUDIO_RATE_MAX)
+-	}
++	}
+-	r.settle = max(r.settle - n, 0)
++	r.settle = max(r.settle - n, 0)
+-	return min(speed, 1) * (1 + clamp(correction, -AUDIO_RATE_MAX, AUDIO_RATE_MAX))
++	return min(speed, 1) * (1 + clamp(correction, -AUDIO_RATE_MAX, AUDIO_RATE_MAX))
+ }
+-
++
+ // Hold drift for a second of sound: emulated time was rebased on real time
+ // (a pause ended, fast-forward stopped, pacing fell behind), or the host
+ // took over 1.25 vblanks for one, so the queue's error until it settles is
+ // not the clocks'. A host that stays slow keeps drift held.
+ audio_settle :: proc() {
+-	audio.rate_ctl.settle = audio.rate
++	audio.rate_ctl.settle = audio.rate
+ }
+-
++
+ // Sound waiting in the queue.
+ audio_queued_ms :: proc() -> f64 {
+-	if audio.dev == 0 {
++	if audio.dev == 0 {
+-		return 0
++		return 0
+-	}
++	}
+-	return f64(sdl.GetQueuedAudioSize(audio.dev) / size_of([2]i16)) * 1000 / f64(audio.rate)
++	return f64(sdl.GetQueuedAudioSize(audio.dev) / size_of([2]i16)) * 1000 / f64(audio.rate)
+ }
+-
++
+ // The counts since the last call, which starts them again.
+ audio_take_stats :: proc() -> Audio_Stats {
+-	s := audio.stats
++	s := audio.stats
+-	s.low_ms = audio.low == max(int) ? 0 : f64(audio.low) * 1000 / f64(audio.rate)
++	s.low_ms = audio.low == max(int) ? 0 : f64(audio.low) * 1000 / f64(audio.rate)
+-	s.drift = audio.rate_ctl.drift
++	s.drift = audio.rate_ctl.drift
+-	audio.stats = {}
++	audio.stats = {}
+-	audio.low = max(int)
++	audio.low = max(int)
+-	return s
++	return s
+ }
+-
++
+ // Finish the dump.
+ audio_close :: proc() {
+-	if audio.dump != nil {
++	if audio.dump != nil {
+-		audio_wav_header()
++		audio_wav_header()
+-		os.close(audio.dump)
++		os.close(audio.dump)
+-		audio.dump = nil
++		audio.dump = nil
+-	}
++	}
+ }
+-
++
+ @(private = "file")
+ audio_queue :: proc(frames: [][2]i16) {
+-	bytes := len(frames) * size_of([2]i16)
++	bytes := len(frames) * size_of([2]i16)
+-	if sdl.QueueAudio(audio.dev, raw_data(frames), u32(bytes)) != 0 {
++	if sdl.QueueAudio(audio.dev, raw_data(frames), u32(bytes)) != 0 {
+-		fmt.eprintln("audio disabled: SDL_QueueAudio:", sdl.GetError())
++		fmt.eprintln("audio disabled: SDL_QueueAudio:", sdl.GetError())
+-		sdl.CloseAudioDevice(audio.dev)
++		sdl.CloseAudioDevice(audio.dev)
+-		audio.dev = 0
++		audio.dev = 0
+-	}
++	}
+ }
+-
++
+ // Resample up to AUDIO_CHUNK frames to 1/step times their length by cubic
+ // (Catmull-Rom) interpolation, one frame behind so the frame after each
+ // interpolated pair is always at hand. Linear interpolation is a lowpass
+ // wherever the fraction sits near one half, and at a step this close to 1 it
+ // sits there for seconds: about 3 dB down at 12 kHz, 6 dB at 16 kHz. The
+ // previous chunk's last three frames join the two.
+ @(private = "file")
+ audio_resample :: proc(frames: [][2]i16, step: f64) -> [][2]i16 {
+-	assert(len(frames) <= AUDIO_CHUNK && step >= AUDIO_MIN_SPEED * (1 - AUDIO_RATE_MAX))
++	assert(len(frames) <= AUDIO_CHUNK && step >= AUDIO_MIN_SPEED * (1 - AUDIO_RATE_MAX))
+-	// Frame k of the chunk, or of the previous one for k in -3 ..< 0.
++	// Frame k of the chunk, or of the previous one for k in -3 ..< 0.
+-	at :: proc(frames: [][2]i16, k: int) -> [2]i16 {
++	at :: proc(frames: [][2]i16, k: int) -> [2]i16 {
+-		return k < 0 ? audio.stretch_prev[3 + k] : frames[k]
++		return k < 0 ? audio.stretch_prev[3 + k] : frames[k]
+-	}
++	}
+-	n := 0
++	n := 0
+-	for audio.stretch_pos < f64(len(frames)) && n < AUDIO_STRETCH_MAX {
++	for audio.stretch_pos < f64(len(frames)) && n < AUDIO_STRETCH_MAX {
+-		i := int(audio.stretch_pos)
++		i := int(audio.stretch_pos)
+-		t := audio.stretch_pos - f64(i)
++		t := audio.stretch_pos - f64(i)
+-		f0, f1, f2, f3 := at(frames, i - 3), at(frames, i - 2), at(frames, i - 1), frames[i]
++		f0, f1, f2, f3 := at(frames, i - 3), at(frames, i - 2), at(frames, i - 1), frames[i]
+-		for c in 0 ..< 2 {
++		for c in 0 ..< 2 {
+-			p0, p1, p2, p3 := f64(f0[c]), f64(f1[c]), f64(f2[c]), f64(f3[c])
++			p0, p1, p2, p3 := f64(f0[c]), f64(f1[c]), f64(f2[c]), f64(f3[c])
+-			y := p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)))
++			y := p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)))
+-			audio.stretch_buf[n][c] = i16(clamp(y, -32768, 32767))
++			audio.stretch_buf[n][c] = i16(clamp(y, -32768, 32767))
+-		}
++		}
+-		n += 1
++		n += 1
+-		audio.stretch_pos += step
++		audio.stretch_pos += step
+-	}
++	}
+-	audio.stretch_pos -= f64(len(frames))
++	audio.stretch_pos -= f64(len(frames))
+-	for k in 0 ..< 3 {
++	for k in 0 ..< 3 {
+-		audio.stretch_prev[k] = at(frames, len(frames) - 3 + k)
++		audio.stretch_prev[k] = at(frames, len(frames) - 3 + k)
+-	}
++	}
+-	return audio.stretch_buf[:n]
++	return audio.stretch_buf[:n]
+ }
+-
++
+ @(private = "file")
+ audio_dump :: proc(frames: [][2]i16) {
+-	if audio.dump == nil {
++	if audio.dump == nil {
+-		return
++		return
+-	}
++	}
+-	bytes := len(frames) * size_of([2]i16)
++	bytes := len(frames) * size_of([2]i16)
+-	if _, err := os.write_at(audio.dump, ([^]u8)(raw_data(frames))[:bytes], i64(44 + audio.dump_bytes)); err != nil {
++	if _, err := os.write_at(audio.dump, ([^]u8)(raw_data(frames))[:bytes], i64(44 + audio.dump_bytes)); err != nil {
+-		fmt.eprintln("audio dump: write failed:", err)
++		fmt.eprintln("audio dump: write failed:", err)
+-		os.close(audio.dump)
++		os.close(audio.dump)
+-		audio.dump = nil
++		audio.dump = nil
+-		return
++		return
+-	}
++	}
+-	second := audio.rate * size_of([2]i16)
++	second := audio.rate * size_of([2]i16)
+-	before := audio.dump_bytes / second
++	before := audio.dump_bytes / second
+-	audio.dump_bytes += bytes
++	audio.dump_bytes += bytes
+-	if audio.dump_bytes / second != before {
++	if audio.dump_bytes / second != before {
+-		audio_wav_header()
++		audio_wav_header()
+-	}
++	}
+ }
+-
++
+ // The 44-byte header for the sound written so far: 16-bit PCM stereo.
+ @(private = "file")
+ audio_wav_header :: proc() {
+-	data := u32(audio.dump_bytes)
++	data := u32(audio.dump_bytes)
+-	hdr := [11]u32 {
++	hdr := [11]u32 {
+-		0x46464952, // "RIFF"
++		0x46464952, // "RIFF"
+-		36 + data,
++		36 + data,
+-		0x45564157, // "WAVE"
++		0x45564157, // "WAVE"
+-		0x20746d66, // "fmt "
++		0x20746d66, // "fmt "
+-		16,
++		16,
+-		1 | 2 << 16, // PCM, stereo
++		1 | 2 << 16, // PCM, stereo
+-		u32(audio.rate),
++		u32(audio.rate),
+-		u32(audio.rate) * 4,
++		u32(audio.rate) * 4,
+-		4 | 16 << 16, // block align, bits per sample
++		4 | 16 << 16, // block align, bits per sample
+-		0x61746164, // "data"
++		0x61746164, // "data"
+-		data,
++		data,
+-	}
++	}
+-	if _, err := os.write_at(audio.dump, ([^]u8)(&hdr)[:44], 0); err != nil {
++	if _, err := os.write_at(audio.dump, ([^]u8)(&hdr)[:44], 0); err != nil {
+-		fmt.eprintln("audio dump: header write failed:", err)
++		fmt.eprintln("audio dump: header write failed:", err)
+-	}
++	}
+ }
+diff --git a/tests/core/audio.odin b/tests/core/audio.odin
+index d050bb5e73eb040c8d8cdfcf3722b745a4312abf..5b96cb54acf37fd82980ecaa20db91c6c9881edb 100644
+--- a/tests/core/audio.odin
++++ b/tests/core/audio.odin
+@@ -1,171 +1,207 @@
+ // core.audio_step against a modelled queue: emulated time 0.305% fast (a
+ // 59.817 Hz console locked to a 60 Hz display) is learnt as drift, with
+ // the queue back at its target and the step never past AUDIO_RATE_MAX.
+ // Drift holds over a stall that empties the queue and the second after it,
+ // with the queue under a quarter of its target, while settle runs (set here
+ // by hand, as audio_settle and a slow host set it), off speed 1, and while
+ // the step is saturated, so it does not overshoot once the error is gone.
+ package main
+-
++
+ import "core:fmt"
+ import "core:os"
+ import "ps:core"
+-
++
+ @(private = "file")
+ RATE :: 44100
+ @(private = "file")
+ TARGET :: 1693
+ @(private = "file")
+ BATCH :: 32
+-
++
+ // The queue at the end of each modelled vblank: `mixed` frames pushed in
+ // batches, `played` taken by the device.
+ @(private = "file")
+ Model :: struct {
+-	queued: f64,
++	queued: f64,
+-	ctl:    core.Audio_Rate,
++	ctl:    core.Audio_Rate,
+-	frac:   f64, // mixed frames owed to the next vblank
++	frac:   f64, // mixed frames owed to the next vblank
+-	worst:  f64, // largest |step - 1| seen
++	worst:  f64, // largest |step - 1| seen
+ }
+-
++
+ @(private = "file")
+ model_vblank :: proc(m: ^Model, mixed, played: f64, speed: f64) {
+-	m.frac += mixed
++	m.frac += mixed
+-	left := int(m.frac)
++	left := int(m.frac)
+-	m.frac -= f64(left)
++	m.frac -= f64(left)
+-	for left > 0 {
++	for left > 0 {
+-		n := min(BATCH, left)
++		n := min(BATCH, left)
+-		left -= n
++		left -= n
+-		step := core.audio_step(&m.ctl, int(m.queued), TARGET, n, RATE, speed)
++		step := core.audio_step(&m.ctl, int(m.queued), TARGET, n, RATE, speed)
+-		m.worst = max(m.worst, abs(step / min(speed, 1) - 1))
++		m.worst = max(m.worst, abs(step / min(speed, 1) - 1))
+-		m.queued += f64(n) / step
++		m.queued += f64(n) / step
+-	}
++	}
+-	m.queued = max(m.queued - played, 0)
++	m.queued = max(m.queued - played, 0)
+ }
+-
++
+ @(private = "file")
+ audio_fail :: proc(format: string, args: ..any) {
+-	fmt.eprint("FAIL audio_step: ")
++	fmt.eprint("FAIL audio_step: ")
+-	fmt.eprintfln(format, ..args)
++	fmt.eprintfln(format, ..args)
+-	os.exit(1)
++	os.exit(1)
+ }
+-
++
+ test_audio_step :: proc() {
++	if !core.audio_queue_can_accept(.Paced, TARGET + RATE / 30, TARGET, RATE) {
++		audio_fail("paced queue rejected a transient two-field burst")
++	}
++	if core.audio_queue_can_accept(.Fast, TARGET + 1, TARGET, RATE) {
++		audio_fail("fast queue accepted sound above its target")
++	}
++	if core.audio_queue_can_accept(.Paced, RATE * core.AUDIO_LATENCY_MAX / 1000 + 1, TARGET, RATE) {
++		audio_fail("paced queue accepted sound above its hard limit")
++	}
++
+-	speed := core.Audio_Speed{value = 1}
++	speed := core.Audio_Speed{value = 1}
+-	for _ in 0 ..< 12 {
++	for _ in 0 ..< 8 {
+-		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 50)
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 50)
+-	}
++	}
+-	if abs(speed.value - 5.0 / 6) > 0.001 {
++	if abs(speed.value - 5.0 / 6) > 0.001 {
+-		audio_fail("host speed %.5f after sustained 50 fps, want %.5f", speed.value, 5.0 / 6)
++		audio_fail("host speed %.5f after sustained 50 fps, want %.5f", speed.value, 5.0 / 6)
+-	}
++	}
+-	before_stall := speed.value
++	before_stall := speed.value
+-	stalled := core.audio_speed_update(&speed, 1.0 / 60, 0.25)
++	stalled := core.audio_speed_update(&speed, 1.0 / 60, 0.25)
+-	if stalled != before_stall {
++	if stalled != before_stall {
+-		audio_fail("host speed %.5f after a pause, want %.5f held", stalled, before_stall)
++		audio_fail("host speed %.5f after a pause, want %.5f held", stalled, before_stall)
+-	}
++	}
+-
++
+-	speed = core.Audio_Speed{value = 1}
++	speed = core.Audio_Speed{value = 1}
+-	for _ in 0 ..< 12 {
++	for _ in 0 ..< 4 {
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 60)
++	}
++	for _ in 0 ..< 3 {
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 60)
++	}
++	core.audio_speed_update(&speed, 1.0 / 60, 0.026)
++	if speed.value != 1 {
++		audio_fail("host speed %.5f after one late field, want 1", speed.value)
++	}
++	for _ in 0 ..< 4 {
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 60)
++	}
++	if speed.value != 1 {
++		audio_fail("host speed %.5f after transient recovery, want 1", speed.value)
++	}
++
++	speed = core.Audio_Speed{value = 1}
++	for _ in 0 ..< 4 {
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 45)
++	}
++	if abs(speed.value - 0.75) > 0.001 {
++		audio_fail("host speed %.5f after sustained 45 fps, want 0.75", speed.value)
++	}
++
++	speed = core.Audio_Speed{value = 1}
++	for _ in 0 ..< 4 {
+-		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 75)
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 75)
+-		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 37.5)
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 37.5)
+-	}
++	}
+-	if abs(speed.value - 5.0 / 6) > 0.001 {
++	if abs(speed.value - 5.0 / 6) > 0.001 {
+-		audio_fail("host speed %.5f for alternating fields, want %.5f", speed.value, 5.0 / 6)
++		audio_fail("host speed %.5f for alternating fields, want %.5f", speed.value, 5.0 / 6)
+-	}
++	}
+-	for _ in 0 ..< 60 {
++	for _ in 0 ..< 4 {
+-		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 60)
++		core.audio_speed_update(&speed, 1.0 / 60, 1.0 / 60)
+-	}
++	}
+-	if speed.value != 1 {
++	if speed.value != 1 {
+-		audio_fail("host speed %.5f after recovery, want 1", speed.value)
++		audio_fail("host speed %.5f after recovery, want 1", speed.value)
+-	}
++	}
+-
++
+-	// 59.817 Hz fields shown at 60 Hz: each real 1/60 s mixes a field.
++	// 59.817 Hz fields shown at 60 Hz: each real 1/60 s mixes a field.
+-	mixed := f64(RATE) / 59.817
++	mixed := f64(RATE) / 59.817
+-	played := f64(RATE) / 60
++	played := f64(RATE) / 60
+-	// The playback speed-up that holds the queue: mixed over played.
++	// The playback speed-up that holds the queue: mixed over played.
+-	want := mixed / played - 1
++	want := mixed / played - 1
+-	m := Model{queued = TARGET}
++	m := Model{queued = TARGET}
+-	for _ in 0 ..< 120 * 60 {
++	for _ in 0 ..< 120 * 60 {
+-		model_vblank(&m, mixed, played, 1)
++		model_vblank(&m, mixed, played, 1)
+-	}
++	}
+-	if abs(m.ctl.drift - want) > 0.0001 {
++	if abs(m.ctl.drift - want) > 0.0001 {
+-		audio_fail("drift %.5f after 120 s, want %.5f", m.ctl.drift, want)
++		audio_fail("drift %.5f after 120 s, want %.5f", m.ctl.drift, want)
+-	}
++	}
+-	// The batches see the queue between empty of this vblank's sound and
++	// The batches see the queue between empty of this vblank's sound and
+-	// full of it: half a vblank's sound over the queue after play.
++	// full of it: half a vblank's sound over the queue after play.
+-	if abs(m.queued + mixed / 2 - TARGET) > TARGET / 10 {
++	if abs(m.queued + mixed / 2 - TARGET) > TARGET / 10 {
+-		audio_fail("queue %.0f mid-vblank after 120 s, want about %d", m.queued + mixed / 2, TARGET)
++		audio_fail("queue %.0f mid-vblank after 120 s, want about %d", m.queued + mixed / 2, TARGET)
+-	}
++	}
+-	if m.worst > core.AUDIO_RATE_MAX + 1e-12 {
++	if m.worst > core.AUDIO_RATE_MAX + 1e-12 {
+-		audio_fail("step %.5f off 1, past AUDIO_RATE_MAX", m.worst)
++		audio_fail("step %.5f off 1, past AUDIO_RATE_MAX", m.worst)
+-	}
++	}
+-	settled := m.ctl.drift
++	settled := m.ctl.drift
+-	// A 5 s stall: the queue runs dry each vblank (each vblank's sound
++	// A 5 s stall: the queue runs dry each vblank (each vblank's sound
+-	// finds it empty). It comes back half full: the settle second after it
++	// finds it empty). It comes back half full: the settle second after it
+-	// ran dry holds drift.
++	// ran dry holds drift.
+-	for _ in 0 ..< 5 * 60 {
++	for _ in 0 ..< 5 * 60 {
+-		m.queued = 0
++		m.queued = 0
+-		model_vblank(&m, mixed, 0, 1)
++		model_vblank(&m, mixed, 0, 1)
+-	}
++	}
+-	m.queued = TARGET / 2
++	m.queued = TARGET / 2
+-	for _ in 0 ..< 50 {
++	for _ in 0 ..< 50 {
+-		model_vblank(&m, mixed, played, 1)
++		model_vblank(&m, mixed, played, 1)
+-	}
++	}
+-	if m.ctl.drift != settled {
++	if m.ctl.drift != settled {
+-		audio_fail("drift %.5f after a stall, want %.5f held", m.ctl.drift, settled)
++		audio_fail("drift %.5f after a stall, want %.5f held", m.ctl.drift, settled)
+-	}
++	}
+-	// Under a quarter of the target, settled: the queue is too near empty to
++	// Under a quarter of the target, settled: the queue is too near empty to
+-	// say anything about the clocks.
++	// say anything about the clocks.
+-	m.ctl.settle = 0
++	m.ctl.settle = 0
+-	for _ in 0 ..< RATE / BATCH {
++	for _ in 0 ..< RATE / BATCH {
+-		core.audio_step(&m.ctl, TARGET / 5, TARGET, BATCH, RATE, 1)
++		core.audio_step(&m.ctl, TARGET / 5, TARGET, BATCH, RATE, 1)
+-	}
++	}
+-	if m.ctl.drift != settled {
++	if m.ctl.drift != settled {
+-		audio_fail("drift %.5f with the queue under a quarter, want %.5f held", m.ctl.drift, settled)
++		audio_fail("drift %.5f with the queue under a quarter, want %.5f held", m.ctl.drift, settled)
+-	}
++	}
+-	// A slow host, settling each vblank as the host does past 1.25 vblanks
++	// A slow host, settling each vblank as the host does past 1.25 vblanks
+-	// of work, with the queue above a quarter of its target and draining.
++	// of work, with the queue above a quarter of its target and draining.
+-	m.queued = TARGET / 2
++	m.queued = TARGET / 2
+-	for _ in 0 ..< 5 * 60 {
++	for _ in 0 ..< 5 * 60 {
+-		m.ctl.settle = RATE
++		m.ctl.settle = RATE
+-		model_vblank(&m, mixed, played * 1.1, 1)
++		model_vblank(&m, mixed, played * 1.1, 1)
+-		m.queued = max(m.queued, TARGET / 3)
++		m.queued = max(m.queued, TARGET / 3)
+-	}
++	}
+-	if m.ctl.drift != settled {
++	if m.ctl.drift != settled {
+-		audio_fail("drift %.5f on a slow host, want %.5f held", m.ctl.drift, settled)
++		audio_fail("drift %.5f on a slow host, want %.5f held", m.ctl.drift, settled)
+-	}
++	}
+-	// Settled by hand (audio_settle), and off speed 1 either way, with the
++	// Settled by hand (audio_settle), and off speed 1 either way, with the
+-	// queue far off target.
++	// queue far off target.
+-	for speed in ([3]f64{1, 2, 0.5}) {
++	for speed in ([3]f64{1, 2, 0.5}) {
+-		m.ctl.settle = RATE if speed == 1 else 0
++		m.ctl.settle = RATE if speed == 1 else 0
+-		m.queued = 2 * TARGET
++		m.queued = 2 * TARGET
+-		model_vblank(&m, mixed, played, speed)
++		model_vblank(&m, mixed, played, speed)
+-		if m.ctl.drift != settled {
++		if m.ctl.drift != settled {
+-			audio_fail("drift %.5f moved at speed %v, want %.5f held", m.ctl.drift, speed, settled)
++			audio_fail("drift %.5f moved at speed %v, want %.5f held", m.ctl.drift, speed, settled)
+-		}
++		}
+-	}
++	}
+-	// Saturated: the queue held at twice its target for 10 s puts the step
++	// Saturated: the queue held at twice its target for 10 s puts the step
+-	// at AUDIO_RATE_MAX; back at the target, drift has not wound up past
++	// at AUDIO_RATE_MAX; back at the target, drift has not wound up past
+-	// where it was.
++	// where it was.
+-	m.ctl.settle = 0
++	m.ctl.settle = 0
+-	for _ in 0 ..< 10 * 60 {
++	for _ in 0 ..< 10 * 60 {
+-		m.queued = 2 * TARGET
++		m.queued = 2 * TARGET
+-		model_vblank(&m, mixed, played, 1)
++		model_vblank(&m, mixed, played, 1)
+-	}
++	}
+-	// One vblank back at the target learns at most its own error's worth,
++	// One vblank back at the target learns at most its own error's worth,
+-	// AUDIO_RATE_MAX times a vblank over AUDIO_DRIFT_S: under 1e-5.
++	// AUDIO_RATE_MAX times a vblank over AUDIO_DRIFT_S: under 1e-5.
+-	m.queued = TARGET
++	m.queued = TARGET
+-	model_vblank(&m, mixed, played, 1)
++	model_vblank(&m, mixed, played, 1)
+-	if m.ctl.drift > settled + 1e-5 {
++	if m.ctl.drift > settled + 1e-5 {
+-		audio_fail("drift %.5f after saturating, wound up past %.5f", m.ctl.drift, settled)
++		audio_fail("drift %.5f after saturating, wound up past %.5f", m.ctl.drift, settled)
+-	}
++	}
+-	// Back at the target, it still holds the queue there.
++	// Back at the target, it still holds the queue there.
+-	m.queued = TARGET
++	m.queued = TARGET
+-	for _ in 0 ..< 60 * 60 {
++	for _ in 0 ..< 60 * 60 {
+-		model_vblank(&m, mixed, played, 1)
++		model_vblank(&m, mixed, played, 1)
+-	}
++	}
+-	if abs(m.ctl.drift - want) > 0.0001 || abs(m.queued + mixed / 2 - TARGET) > TARGET / 10 {
++	if abs(m.ctl.drift - want) > 0.0001 || abs(m.queued + mixed / 2 - TARGET) > TARGET / 10 {
+-		audio_fail("drift %.5f, queue %.0f mid-vblank after the stall, want %.5f, about %d", m.ctl.drift, m.queued + mixed / 2, want, TARGET)
++		audio_fail("drift %.5f, queue %.0f mid-vblank after the stall, want %.5f, about %d", m.ctl.drift, m.queued + mixed / 2, want, TARGET)
+-	}
++	}
+-	fmt.printfln("ok audio_step: drift %.4f%%, want %.4f%%", m.ctl.drift * 100, want * 100)
++	fmt.printfln("ok audio_step: drift %.4f%%, want %.4f%%", m.ctl.drift * 100, want * 100)
+ }

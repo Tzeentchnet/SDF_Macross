@@ -179,6 +179,11 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Added rolling host-speed measurement and adaptive audio resampling. The
   final benchmark matrix recorded zero audio queue dry events in every tested
   renderer mode.
+- [x] Replaced overlapping speed windows after they were found to overreact to
+  isolated late software-renderer fields and discard audible 800/801-sample
+  batches. Disjoint windows and continuous paced queuing eliminated all
+  active-music drops in the repeated 1,800-frame route while retaining
+  slow-Vulkan adaptation.
 - [x] Benchmarked the deterministic heavy scene and selected software
   rendering as the full-speed default; Vulkan remains selectable for internal
   scaling and FSR 1.

@@ -16,7 +16,7 @@ code, or a translated image. You must provide your own matching disc image.
 | Software renderer | Recommended; sustained full speed in the tested heavy scene |
 | Vulkan renderer | Working with deterministic GS memory ordering; tested on an NVIDIA GeForce RTX 5070 |
 | Output upscaling | FSR 1 EASU + RCAS or linear scaling on Vulkan |
-| Slow-host audio | Adaptive resampling prevents repeated queue starvation in the tested scenes |
+| Slow-host audio | Adaptive resampling prevents tested queue starvation and transient whole-batch drops |
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |
 | English-patched image | Recompiles and reaches the same 600-frame run |
 | Static EE recompilation | 8,684 functions in 15 generated packages |

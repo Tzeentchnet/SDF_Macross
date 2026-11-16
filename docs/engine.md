@@ -131,12 +131,32 @@ The software renderer is therefore the current recommendation when smooth
 motion and unmodified audio pitch matter more than supersampling. Vulkan
 remains below the console's 59.94 Hz rate in this scene even at 1x.
 
-The host now estimates sustained emulation speed over a four-field rolling
-window and feeds it to the existing cubic audio resampler. This avoids the
-repeated queue underruns that caused choppy audio; all rows above report zero
-dry events. Slow Vulkan modes remain synchronized by playing audio more slowly
-and at a lower pitch. This is not pitch-preserving time stretch, and it does
-not make a slow renderer full speed.
+The host estimates sustained emulation speed over disjoint four-field groups
+and feeds it to the existing cubic audio resampler. A single moderately slow
+group is treated as scheduling jitter unless the next group is also slow;
+speeds below 80% take effect immediately so the 50 ms latency budget cannot
+run dry while waiting for confirmation. Slow Vulkan modes remain synchronized
+by playing audio more slowly and at a lower pitch. This is not pitch-preserving
+time stretch, and it does not make a slow renderer full speed.
+
+The earlier rolling estimator reused each late field in four overlapping
+windows and recovered more slowly than it reacted. In the full-speed software
+path, occasional 18-26 ms frames therefore lowered the resampling step long
+after the queue had recovered. The overfilled queue then discarded one or two
+complete 800/801-sample batches per five-second reporting interval, producing
+music stutters even though the dry-event count stayed at zero. The raw
+pre-resampler capture was continuous and unclipped, isolating the fault to host
+pacing rather than the FMOD/ADX/SPU2 mix.
+
+Paced playback also preserves transient catch-up audio instead of discarding a
+batch as soon as the queue exceeds the old two-frame slack. The queue may grow
+to the supported 250 ms maximum before a hard safety drop; fast-forward keeps
+its target-based dropping behavior so it cannot leave delayed sound behind.
+
+With disjoint timing groups and continuous paced queuing, the same 1,800-frame
+software route held 59.9 FPS, 100% audio speed, and zero dropped batches in
+every active-music interval. A slow Vulkan 1x run still adapted to 85% at
+51.1 FPS and recorded neither a dry event nor a dropped batch.
 
 ### Vulkan GS ordering fix
 
