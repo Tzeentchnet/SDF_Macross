@@ -144,9 +144,9 @@ windows and recovered more slowly than it reacted. In the full-speed software
 path, occasional 18-26 ms frames therefore lowered the resampling step long
 after the queue had recovered. The overfilled queue then discarded one or two
 complete 800/801-sample batches per five-second reporting interval, producing
-music stutters even though the dry-event count stayed at zero. The raw
-pre-resampler capture was continuous and unclipped, isolating the fault to host
-pacing rather than the FMOD/ADX/SPU2 mix.
+music stutters even though the dry-event count stayed at zero. Initial checks
+of the raw pre-resampler capture found no clipping or long silence, but those
+checks were not sufficient to rule out the source mixer.
 
 Paced playback also preserves transient catch-up audio instead of discarding a
 batch as soon as the queue exceeds the old two-frame slack. The queue may grow
@@ -157,6 +157,25 @@ With disjoint timing groups and continuous paced queuing, the same 1,800-frame
 software route held 59.9 FPS, 100% audio speed, and zero dropped batches in
 every active-music interval. A slow Vulkan 1x run still adapted to 85% at
 51.1 FPS and recorded neither a dry event nor a dropped batch.
+
+Detailed adjacent-sample analysis later found a separate source-level fault in
+the main-menu music. That route uses the game's CRI driver to feed SPU2 through
+`sceSdBlockTrans`; FMOD and the framework's ADX HLE ring are inactive. The
+runtime mixed a future 800/801-frame host batch by rereading the live IOP
+double buffer. A batch could cross into a 512-frame half before its interrupt
+handler refilled it, or reread a half after a later refill had overwritten it.
+The result was stale or reordered PCM at half-buffer boundaries.
+
+The patched SPU2 path captures the initial ADMA buffer into a bounded stereo
+queue, exposes each refilled half only after its interrupt handler returns, and
+rejects callbacks from an older stopped transfer by generation. The queue
+preserves stream order while larger source buffers are captured progressively;
+loop underflows are counted and covered by the SPU regression. In the
+deterministic menu capture, adjacent-sample jumps above 8,000 fell from 53 to
+zero, jumps above 6,000 fell from 106 to zero, and the maximum jump fell from
+15,423 to 5,678. The corrected output kept one constant 1,312-sample alignment
+offset throughout every tested active segment instead of accumulating further
+delay, so the stream no longer drifts slower over time.
 
 ### Vulkan GS ordering fix
 

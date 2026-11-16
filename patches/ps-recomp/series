@@ -5,3 +5,4 @@
 0003-vulkan-presentation-and-fsr1.patch
 0004-adaptive-audio-pacing.patch
 0005-continuous-audio-pacing.patch
+0006-continuous-spu-block-audio.patch

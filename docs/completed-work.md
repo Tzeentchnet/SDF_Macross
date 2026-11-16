@@ -184,6 +184,13 @@ This file is the archive for finished tasks. Active work belongs in
   batches. Disjoint windows and continuous paced queuing eliminated all
   active-music drops in the repeated 1,800-frame route while retaining
   slow-Vulkan adaptation.
+- [x] Isolated the remaining main-menu crackle to the real CRI driver's SPU2
+  block transfer. Captured ADMA halves now remain ordered across interrupt
+  refills, stale callbacks cannot feed a replacement transfer, and the focused
+  regression covers source-buffer overwrite, refill order, nonzero offsets,
+  buffers larger than the queue, snapshot restoration, restart generation, and
+  loop-underflow accounting. The deterministic capture reduced 106
+  adjacent-sample jumps above 6,000 to zero.
 - [x] Benchmarked the deterministic heavy scene and selected software
   rendering as the full-speed default; Vulkan remains selectable for internal
   scaling and FSR 1.
