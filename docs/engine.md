@@ -108,15 +108,15 @@ decoding those assets is required for a Blender importer.
 
 ## Rendering and presentation
 
-The checked-in [`settings.tsv`](../settings.tsv) selects the software renderer
-for reliable full-speed play. Vulkan remains available for internal-resolution
-scaling and FSR 1. [`tools/run.ps1`](../tools/run.ps1) can select either path
-without opening the launcher.
+The checked-in [`settings.tsv`](../settings.tsv) selects Vulkan for reliable
+full-speed play. The software renderer remains available as a compatibility
+fallback. [`tools/run.ps1`](../tools/run.ps1) can select either path without
+opening the launcher.
 
 ### Measured performance and audio
 
-The following optimized-build measurements used an NVIDIA GeForce RTX 5070,
-a 1280x960 window, and the same deterministic intro-cutscene interval. Each
+The first optimized-build measurements used an NVIDIA GeForce RTX 5070, a
+1280x960 window, and a deterministic interval in the opening vignette. Each
 row is the 300-frame report ending at presented frame 1500:
 
 | Renderer | Internal/output scaling | FPS | Work avg / p95 | Present avg | Audio dry | Average audio speed |
@@ -127,9 +127,26 @@ row is the 300-frame report ending at presented frame 1500:
 | Vulkan | 2x, FSR 1 | 51.0 | 19.54 / 20.33 ms | 12.01 ms | 0 | 84% |
 | Vulkan | 4x, linear downscale | 45.8 | 21.78 / 22.10 ms | 14.18 ms | 0 | 76% |
 
-The software renderer is therefore the current recommendation when smooth
-motion and unmodified audio pitch matter more than supersampling. Vulkan
-remains below the console's 59.94 Hz rate in this scene even at 1x.
+Those measurements were initially mistaken for the animated main menu and led
+to the wrong global software-renderer recommendation. The actual four-option
+MAIN MENU is reached deterministically with
+`Start@1200,Start@1500,Circle@1700`. Stable reports from frames 2100 through
+2700 show the opposite result:
+
+| Renderer | Internal/output scaling | FPS | Work avg | Audio dry/dropped | Audio speed |
+|---|---|---:|---:|---:|---:|
+| Software, original generic paths | Native, SDL presentation | 24.8-25.4 | 39.4-40.3 ms | 0/0 | ~42% |
+| Software, menu fast paths | Native, SDL presentation | 31.0-31.3 | 31.9-32.3 ms | 0/0 | adaptive |
+| Vulkan | 1x, FSR 1 | 59.9 | 8.79-8.99 ms | 0/0 | 100% |
+| Vulkan | 4x, linear downscale | 59.9 | 8.91-9.01 ms | 0/0 | 100% |
+
+Inclusive VU1 timing contains VIF, GIF, and software GS work. Focused
+instrumentation attributed roughly 30 ms of the slow software frames to
+rasterization invoked by GIF/XGKICK, not to VU microcode alone. Nine
+bit-equivalent software pixel specializations plus safe read-only early depth
+rejection reduce that cost but cannot make the menu full speed. Vulkan is
+therefore the default and recommendation. Existing explicit player settings
+retain their normal precedence and are not silently rewritten.
 
 The host estimates sustained emulation speed over disjoint four-field groups
 and feeds it to the existing cubic audio resampler. A single moderately slow

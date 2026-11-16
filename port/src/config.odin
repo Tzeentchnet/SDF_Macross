@@ -40,7 +40,7 @@ Config :: struct {
 }
 
 CONFIG_DEFAULT :: Config {
-	software = true,
+	software = false,
 	scale    = 1,
 	upscaler = .Fsr1,
 	launcher = true,

@@ -110,7 +110,7 @@ row_value :: proc(u: ^Ui, r: Row) -> string {
 	switch r {
 	case .Text: return u.choices[u.text].label
 	case .Subtitles: return c.subtitles ? "On" : "Off"
-	case .Renderer: return c.software ? "Software (recommended)" : "Vulkan"
+	case .Renderer: return c.software ? "Software (compatibility)" : "Vulkan (recommended)"
 	case .Scale: return fmt.tprintf("%dx (%dx%d)", c.scale, 640 * c.scale, 448 * c.scale)
 	case .Upscaler: return c.upscaler == .Fsr1 ? "FSR 1 (EASU + RCAS)" : "Linear"
 	case .Display: return c.fullscreen ? "Fullscreen" : "Windowed"
@@ -125,7 +125,7 @@ row_help :: proc(u: ^Ui, r: Row) -> string {
 	switch r {
 	case .Text: return u.choices[u.text].info
 	case .Subtitles: return "Show captions for supported radio lines the game only speaks."
-	case .Renderer: return "Software sustains full speed in tested heavy scenes. Vulkan enables resolution scaling."
+	case .Renderer: return "Vulkan holds full speed on the animated main menu. Software is a slower compatibility fallback."
 	case .Scale: return u.cfg.software ? "Applies to the Vulkan renderer only." : "Higher is sharper but slower. Use 1x or 2x when full speed matters."
 	case .Upscaler: return "Vulkan only. FSR 1 spatially upscales when the output is larger than the internal image."
 	case .Display: return "Borderless fullscreen. Press F11 in game to toggle."

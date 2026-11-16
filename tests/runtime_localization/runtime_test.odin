@@ -27,7 +27,7 @@ settings_layering_and_defaults :: proc(t: ^testing.T) {
 	c = port.config_resolve({}, {}, global, {}, false)
 	testing.expect(t, c.scale == 5 && c.software && c.upscaler == .Linear)
 	c = port.config_resolve({}, {}, {}, {}, false)
-	testing.expect(t, c.scale == 1 && c.software && c.upscaler == .Fsr1)
+	testing.expect(t, c.scale == 1 && !c.software && c.upscaler == .Fsr1)
 	c = port.config_resolve({}, {}, {}, {}, true)
 	testing.expect(t, c.scale == 1)
 

@@ -13,8 +13,8 @@ code, or a translated image. You must provide your own matching disc image.
 | Area | Status |
 |---|---|
 | Windows x86-64 native build | Working |
-| Software renderer | Recommended; sustained full speed in the tested heavy scene |
-| Vulkan renderer | Working with deterministic GS memory ordering; tested on an NVIDIA GeForce RTX 5070 |
+| Software renderer | Compatibility fallback; ~31 FPS on the animated main menu after focused fast paths |
+| Vulkan renderer | Recommended; deterministic GS memory ordering and 59.9 FPS on the tested main menu |
 | Output upscaling | FSR 1 EASU + RCAS or linear scaling on Vulkan |
 | Audio | Adaptive slow-host pacing plus ordered SPU2 block-transfer capture; no severe jumps in the deterministic menu capture |
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |
@@ -119,11 +119,12 @@ replace legacy output with verified provenance.
 ```
 
 The launcher offers text language, radio subtitles, renderer, internal
-resolution, output upscaler, fullscreen, and launcher settings. Software
-rendering is the measured full-speed default. Vulkan enables internal
-resolution scaling; FSR 1 is a spatial EASU + RCAS option for lower internal
-resolutions. It saves changed options in the local runtime data directory; F11
-toggles fullscreen in-game. To start directly or force the launcher back on:
+resolution, output upscaler, fullscreen, and launcher settings. Vulkan is the
+measured full-speed default and enables internal resolution scaling; FSR 1 is a
+spatial EASU + RCAS option for lower internal resolutions. Software remains a
+compatibility fallback. Changed options are saved in the local runtime data
+directory; F11 toggles fullscreen in-game. To start directly or force the
+launcher back on:
 
 ```powershell
 .\port\macross-recomp.exe --play
@@ -134,11 +135,11 @@ Alternatively, [`tools\run.ps1`](tools/run.ps1) bypasses the launcher by
 default and explicitly overrides saved rendering options for that run:
 
 ```powershell
-# Measured full-speed path
-.\tools\run.ps1 -Renderer Software
-
-# Vulkan at native internal resolution, spatially upscaled to the window
+# Measured full-speed path at native internal resolution
 .\tools\run.ps1 -Renderer Vulkan -Scale 1 -Upscaler FSR1
+
+# Software compatibility fallback
+.\tools\run.ps1 -Renderer Software
 
 # Show the launcher instead of starting immediately
 .\tools\run.ps1 -Launcher

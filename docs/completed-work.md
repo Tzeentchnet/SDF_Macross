@@ -191,9 +191,12 @@ This file is the archive for finished tasks. Active work belongs in
   buffers larger than the queue, snapshot restoration, restart generation, and
   loop-underflow accounting. The deterministic capture reduced 106
   adjacent-sample jumps above 6,000 to zero.
-- [x] Benchmarked the deterministic heavy scene and selected software
-  rendering as the full-speed default; Vulkan remains selectable for internal
-  scaling and FSR 1.
+- [x] Corrected the earlier benchmark route, which covered the opening
+  vignette rather than the animated four-option MAIN MENU. On the exact menu,
+  software improved from roughly 25 to 31 FPS with nine bit-tested pixel
+  specializations and read-only early depth rejection, while Vulkan held
+  59.9 FPS with 100% audio at both 1x FSR 1 and 4x linear scaling. Vulkan is
+  now the default; software remains an explicit compatibility fallback.
 - [x] Surveyed PCSX2, RPCS3, Xenia, RT64/Zelda64Recomp, AMD FSR 3, and NVIDIA
   Streamline. Documented the missing temporal inputs and pacing work instead
   of exposing nonfunctional FSR 3, DLSS, or frame-generation options.
