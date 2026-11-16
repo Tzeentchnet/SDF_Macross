@@ -3,6 +3,8 @@
 /.local/
 /.tools/
 /local.tsv
+/localization/_base/strings.csv
+/localization/en-fan/strings.csv
 /port/src/rec/
 /port/*.dll
 /port/*.exe
