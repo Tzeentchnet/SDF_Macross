@@ -20,7 +20,7 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 	if !testing.expect(t, os.make_directory_all(player_dir) == nil) {return}
 
 	names := [?]string{
-		"DATA", "SW", "SCALE", "IRX", "NATIVE", "LOC", "LANG", "SUBTITLES",
+		"DATA", "SW", "SCALE", "UPSCALER", "IRX", "NATIVE", "LOC", "LANG", "SUBTITLES",
 		"FULLSCREEN", "LAUNCHER", "HEADLESS",
 	}
 	old: [len(names)]string
@@ -36,8 +36,8 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 	}
 	testing.expect(t, os.set_env(core.env_name("DATA"), global_dir) == nil)
 	testing.expect(t, os.set_env(core.env_name("NATIVE"), "1") == nil)
-	global := "SW\t1\nSCALE\t5\nIRX\t1\nNATIVE\t0\nLOC\tglobal\n"
-	repository := "SCALE\t1\nIRX\t1\nNATIVE\t0\nLOC\trepository\n"
+	global := "SW\t1\nSCALE\t5\nUPSCALER\tlinear\nIRX\t1\nNATIVE\t0\nLOC\tglobal\n"
+	repository := "SCALE\t1\nUPSCALER\tfsr1\nIRX\t1\nNATIVE\t0\nLOC\trepository\n"
 	player := "SW\t0\nIRX\t0\nLOC\tlocal\nUNKNOWN\tkeep\n"
 	if !testing.expect(t, os.write_entire_file(global_dir + "\\settings.tsv", transmute([]u8)global) == nil) {return}
 	if !testing.expect(t, os.write_entire_file(repo_dir + "\\settings.tsv", transmute([]u8)repository) == nil) {return}
@@ -48,6 +48,7 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 	testing.expect(t, port.config_apply(l, cfg))
 	testing.expect(t, core.env("SW") == "0")
 	testing.expect(t, core.env("SCALE") == "1")
+	testing.expect(t, core.env("UPSCALER") == "fsr1")
 	testing.expect(t, core.env("IRX") == "0")
 	testing.expect(t, core.env("NATIVE") == "1")
 

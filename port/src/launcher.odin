@@ -19,7 +19,7 @@ Launch_Result :: enum {
 
 // Logical size of the launcher's picture; SDL scales it to the window.
 @(private = "file") LW :: 640
-@(private = "file") LH :: 400
+@(private = "file") LH :: 424
 @(private = "file") GLYPH :: 2 // font scale: 16-pixel characters
 @(private = "file") CH :: core.FONT_GLYPH * GLYPH
 @(private = "file") ROW_Y0 :: 92
@@ -42,6 +42,7 @@ Row :: enum {
 	Subtitles,
 	Renderer,
 	Scale,
+	Upscaler,
 	Display,
 	Launcher,
 	Play,
@@ -93,6 +94,7 @@ row_label :: proc(r: Row) -> string {
 	case .Subtitles: return "Radio subtitles"
 	case .Renderer: return "Renderer"
 	case .Scale: return "Internal resolution"
+	case .Upscaler: return "Output upscaler"
 	case .Display: return "Display"
 	case .Launcher: return "Show this launcher"
 	case .Play: return "Play"
@@ -108,8 +110,9 @@ row_value :: proc(u: ^Ui, r: Row) -> string {
 	switch r {
 	case .Text: return u.choices[u.text].label
 	case .Subtitles: return c.subtitles ? "On" : "Off"
-	case .Renderer: return c.software ? "Software" : "Vulkan"
+	case .Renderer: return c.software ? "Software (recommended)" : "Vulkan"
 	case .Scale: return fmt.tprintf("%dx (%dx%d)", c.scale, 640 * c.scale, 448 * c.scale)
+	case .Upscaler: return c.upscaler == .Fsr1 ? "FSR 1 (EASU + RCAS)" : "Linear"
 	case .Display: return c.fullscreen ? "Fullscreen" : "Windowed"
 	case .Launcher: return c.launcher ? "At every start" : "Only with --launcher"
 	case .Play, .Export, .Quit: return ""
@@ -122,8 +125,9 @@ row_help :: proc(u: ^Ui, r: Row) -> string {
 	switch r {
 	case .Text: return u.choices[u.text].info
 	case .Subtitles: return "Show captions for supported radio lines the game only speaks."
-	case .Renderer: return "Vulkan draws on the GPU. Software is slower but a useful fallback."
-	case .Scale: return u.cfg.software ? "Applies to the Vulkan renderer only." : "Rendering resolution. Higher is sharper and needs a faster GPU."
+	case .Renderer: return "Software sustains full speed in tested heavy scenes. Vulkan enables resolution scaling."
+	case .Scale: return u.cfg.software ? "Applies to the Vulkan renderer only." : "Higher is sharper but slower. Use 1x or 2x when full speed matters."
+	case .Upscaler: return "Vulkan only. FSR 1 spatially upscales when the output is larger than the internal image."
 	case .Display: return "Borderless fullscreen. Press F11 in game to toggle."
 	case .Launcher: return "Off starts the game directly. Run with --launcher to see this again."
 	case .Play: return "Save these options and start the game."
@@ -153,6 +157,9 @@ change :: proc(u: ^Ui, r: Row, dir: int) {
 	case .Scale:
 		next := clamp(c.scale + dir, 1, 8)
 		if next != c.scale {c.scale = next; c.dirty += {.Scale}}
+	case .Upscaler:
+		c.upscaler = c.upscaler == .Fsr1 ? .Linear : .Fsr1
+		c.dirty += {.Upscaler}
 	case .Display:
 		c.fullscreen = !c.fullscreen
 		c.dirty += {.Fullscreen}

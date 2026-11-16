@@ -5,6 +5,7 @@
 //
 //   SW         1 draws in software, else Vulkan          (runtime setting)
 //   SCALE      Vulkan internal resolution, 1..8          (runtime setting)
+//   UPSCALER   linear or fsr1                             (runtime setting)
 //   LOC        localization mod: a folder in localization/, "" for the disc's text
 //   LANG       the language column of that mod's strings.csv
 //   SUBTITLES  1 captions radio lines that are voice-only on the disc
@@ -20,9 +21,15 @@ import "core:strconv"
 import "core:strings"
 import "ps:core"
 
+Upscaler :: enum {
+	Linear,
+	Fsr1,
+}
+
 Config :: struct {
 	software:   bool,
 	scale:      int,
+	upscaler:   Upscaler,
 	loc:        string,
 	lang:       string,
 	subtitles:  bool,
@@ -33,13 +40,16 @@ Config :: struct {
 }
 
 CONFIG_DEFAULT :: Config {
-	scale    = 3,
+	software = true,
+	scale    = 1,
+	upscaler = .Fsr1,
 	launcher = true,
 }
 
 Config_Option :: enum {
 	Sw,
 	Scale,
+	Upscaler,
 	Loc,
 	Lang,
 	Subtitles,
@@ -50,6 +60,7 @@ Config_Option :: enum {
 CONFIG_NAMES :: [Config_Option]string {
 	.Sw        = "SW",
 	.Scale     = "SCALE",
+	.Upscaler  = "UPSCALER",
 	.Loc       = "LOC",
 	.Lang      = "LANG",
 	.Subtitles = "SUBTITLES",
@@ -128,6 +139,12 @@ config_resolve :: proc(local, repository, global, environment: Config_Rows, head
 	if c.source[.Scale] != .Default {
 		if n, ok := strconv.parse_int(values[.Scale]); ok && n >= 1 && n <= 8 {c.scale = n}
 	}
+	if c.source[.Upscaler] != .Default {
+		switch {
+		case strings.equal_fold(values[.Upscaler], "linear"): c.upscaler = .Linear
+		case strings.equal_fold(values[.Upscaler], "fsr1"): c.upscaler = .Fsr1
+		}
+	}
 	if c.source[.Loc] != .Default {c.loc = strings.clone(values[.Loc])}
 	if c.source[.Lang] != .Default {c.lang = strings.clone(values[.Lang])}
 	if c.source[.Subtitles] != .Default {c.subtitles = config_bool(values[.Subtitles])}
@@ -178,6 +195,7 @@ config_serialize :: proc(original: string, c: Config, allocator := context.alloc
 		switch option {
 		case .Sw: fmt.sbprintf(&sb, "SW\t%s\n", b01(c.software))
 		case .Scale: fmt.sbprintf(&sb, "SCALE\t%d\n", c.scale)
+		case .Upscaler: fmt.sbprintf(&sb, "UPSCALER\t%s\n", c.upscaler == .Fsr1 ? "fsr1" : "linear")
 		case .Loc: fmt.sbprintf(&sb, "LOC\t%s\n", c.loc)
 		case .Lang: fmt.sbprintf(&sb, "LANG\t%s\n", c.lang)
 		case .Subtitles: fmt.sbprintf(&sb, "SUBTITLES\t%s\n", b01(c.subtitles))
@@ -238,6 +256,7 @@ config_apply :: proc(l: Local, c: Config) -> bool {
 	if c.source[.Scale] == .Local || .Scale in c.dirty {
 		if !set("SCALE", fmt.tprintf("%d", c.scale)) {return false}
 	}
+	if !set("UPSCALER", c.upscaler == .Fsr1 ? "fsr1" : "linear") {return false}
 	return core.settings_apply(l.root)
 }
 

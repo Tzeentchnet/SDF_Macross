@@ -11,29 +11,30 @@ loc_test_mutex: sync.Mutex
 @(test)
 settings_layering_and_defaults :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
-	global := port.config_parse("SW\t1\nSCALE\t5\nLOC\tglobal\n", context.temp_allocator)
-	repository := port.config_parse("SW\t0\nSCALE\t1\nLOC\trepository\n", context.temp_allocator)
+	global := port.config_parse("SW\t1\nSCALE\t5\nUPSCALER\tlinear\nLOC\tglobal\n", context.temp_allocator)
+	repository := port.config_parse("SW\t0\nSCALE\t1\nUPSCALER\tfsr1\nLOC\trepository\n", context.temp_allocator)
 	local := port.config_parse("SCALE\t2\nLOC\tlocal\n", context.temp_allocator)
 	env := port.config_parse("LOC\t\n", context.temp_allocator)
 	c := port.config_resolve(local, repository, global, env, false)
 	testing.expect(t, !c.software && c.source[.Sw] == .Repository)
 	testing.expect(t, c.scale == 2 && c.source[.Scale] == .Local)
+	testing.expect(t, c.upscaler == .Fsr1 && c.source[.Upscaler] == .Repository)
 	testing.expect(t, c.loc == "" && c.source[.Loc] == .Environment)
 	testing.expect(t, c.launcher)
 
 	c = port.config_resolve({}, repository, global, {}, false)
 	testing.expect(t, c.scale == 1 && c.source[.Scale] == .Repository)
 	c = port.config_resolve({}, {}, global, {}, false)
-	testing.expect(t, c.scale == 5 && c.software)
+	testing.expect(t, c.scale == 5 && c.software && c.upscaler == .Linear)
 	c = port.config_resolve({}, {}, {}, {}, false)
-	testing.expect(t, c.scale == 3)
+	testing.expect(t, c.scale == 1 && c.software && c.upscaler == .Fsr1)
 	c = port.config_resolve({}, {}, {}, {}, true)
 	testing.expect(t, c.scale == 1)
 
 	// A set but invalid environment value still blocks inherited values.
 	env = port.config_parse("SCALE\t0\n", context.temp_allocator)
 	c = port.config_resolve({}, repository, global, env, false)
-	testing.expect(t, c.scale == 3 && c.source[.Scale] == .Environment)
+	testing.expect(t, c.scale == 1 && c.source[.Scale] == .Environment)
 	c = port.config_resolve({}, repository, global, env, true)
 	testing.expect(t, c.scale == 1 && c.source[.Scale] == .Environment)
 }
@@ -41,13 +42,14 @@ settings_layering_and_defaults :: proc(t: ^testing.T) {
 @(test)
 settings_parser_and_non_destructive_save :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
-	text := "SCALE\t1\nSCALE\t8\nSW\t1\textra\nSW\t0\nIRX\t0\nNATIVE\t0\nUNKNOWN\tx\n"
+	text := "SCALE\t1\nSCALE\t8\nUPSCALER\tlinear\nSW\t1\textra\nSW\t0\nIRX\t0\nNATIVE\t0\nUNKNOWN\tx\n"
 	rows := port.config_parse(text, context.temp_allocator)
 	testing.expect(t, rows.value[.Scale] == "1")
 	testing.expect(t, rows.value[.Sw] == "0")
 	c := port.config_resolve(rows, {}, {}, {}, false)
 	c.scale = 4
-	c.dirty += {.Scale}
+	c.upscaler = .Fsr1
+	c.dirty += {.Scale, .Upscaler}
 	saved := port.config_serialize(text, c, context.temp_allocator)
 	testing.expect(t, strings.contains(saved, "IRX\t0\n"))
 	testing.expect(t, strings.contains(saved, "NATIVE\t0\n"))
@@ -56,6 +58,7 @@ settings_parser_and_non_destructive_save :: proc(t: ^testing.T) {
 	testing.expect(t, !strings.contains(saved, "SCALE\t1\n"))
 	testing.expect(t, !strings.contains(saved, "SCALE\t8\n"))
 	testing.expect(t, strings.contains(saved, "SCALE\t4\n"))
+	testing.expect(t, strings.contains(saved, "UPSCALER\tfsr1\n"))
 	testing.expect(t, !strings.contains(saved, "LOC\t"))
 }
 

@@ -1,7 +1,15 @@
 [CmdletBinding()]
 param(
+    [ValidateSet("Vulkan", "Software")]
+    [string]$Renderer = "Vulkan",
+
     [ValidateRange(1, 8)]
     [int]$Scale = 1,
+
+    [ValidateSet("Linear", "FSR1")]
+    [string]$Upscaler = "Linear",
+
+    [switch]$Launcher,
 
     [switch]$Headless,
 
@@ -17,12 +25,18 @@ $Game = Join-Path $Root "port\macross-recomp.exe"
 if (-not (Test-Path -LiteralPath $Game)) {
     throw "The port has not been built. Run tools\setup.ps1 -Image <path-to-iso>."
 }
-if (-not $Headless -and -not (Test-Path -LiteralPath "$env:WINDIR\System32\vulkan-1.dll")) {
+if ($Renderer -eq "Vulkan" -and -not $Headless -and -not (Test-Path -LiteralPath "$env:WINDIR\System32\vulkan-1.dll")) {
     throw "Vulkan loader not found. Install a Vulkan 1.3-capable graphics driver."
 }
 
-$env:MACROSS_SW = "0"
+if ($Renderer -eq "Software") {
+    $env:MACROSS_SW = "1"
+}
+else {
+    $env:MACROSS_SW = "0"
+}
 $env:MACROSS_SCALE = [string]$Scale
+$env:MACROSS_UPSCALER = $Upscaler.ToLowerInvariant()
 if ($Headless) {
     $env:MACROSS_HEADLESS = "1"
     $env:MACROSS_COMPAT = "1"
@@ -31,7 +45,11 @@ if ($Headless) {
 
 Push-Location (Join-Path $Root "port")
 try {
-    & $Game
+    $GameArgument = "--play"
+    if ($Launcher) {
+        $GameArgument = "--launcher"
+    }
+    & $Game $GameArgument
     exit $LASTEXITCODE
 }
 finally {
