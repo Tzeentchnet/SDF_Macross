@@ -19,6 +19,17 @@ contains only unfinished work.
   creation/load/save, audio mixing, ADX streaming, and SFD playback.
 - [ ] Test Vulkan behavior on AMD and Intel hardware and on more than one
   driver version.
+- [ ] Profile and optimize the Vulkan GS until heavy scenes sustain the
+  console's 59.94 Hz rate; frame generation is not a substitute for real
+  full-speed frames.
+- [ ] Validate FSR 1 across AMD and Intel hardware, fullscreen, window
+  resizing, ultrawide letterboxing, and representative 1x/2x scenes.
+- [ ] Evaluate pitch-preserving time stretch if lower-pitched adaptive audio
+  during unavoidable slow rendering is not acceptable.
+- [ ] Revisit temporal upscaling or frame interpolation only after the
+  renderer can provide stable motion vectors, conventional depth, temporal
+  jitter/history, reactive masks, UI separation, and correct latency/pacing;
+  review DLSS/Streamline redistribution compatibility before using it.
 - [ ] Add long-running soak tests beyond the current 600-frame boot check.
 
 ## Recompiler and build

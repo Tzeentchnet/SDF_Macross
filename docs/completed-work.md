@@ -165,3 +165,23 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Documented the exact-disc smoke command and its limits in
   [`README.md`](../README.md); the earlier 600-frame observations above are
   not evidence of visual correctness or full-game compatibility.
+
+## 2026-11-16 - Rendering, presentation, and slow-host audio
+
+- [x] Reproduced the moving Vulkan model speckles at a deterministic mission
+  frame and proved that repeated GPU captures differed while software captures
+  were byte-identical.
+- [x] Bound fragment-shader GS memory through a coherent descriptor-backed
+  storage buffer, eliminating the nondeterministic pixels at both 1x and 4x.
+- [x] Moved Vulkan scanout to device-local memory and made host readback lazy.
+- [x] Added AMD FSR 1.0.2 EASU + RCAS spatial output scaling with its upstream
+  license and a linear fallback for downscaling.
+- [x] Added rolling host-speed measurement and adaptive audio resampling. The
+  final benchmark matrix recorded zero audio queue dry events in every tested
+  renderer mode.
+- [x] Benchmarked the deterministic heavy scene and selected software
+  rendering as the full-speed default; Vulkan remains selectable for internal
+  scaling and FSR 1.
+- [x] Surveyed PCSX2, RPCS3, Xenia, RT64/Zelda64Recomp, AMD FSR 3, and NVIDIA
+  Streamline. Documented the missing temporal inputs and pacing work instead
+  of exposing nonfunctional FSR 3, DLSS, or frame-generation options.

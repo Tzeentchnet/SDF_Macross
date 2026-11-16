@@ -13,7 +13,10 @@ code, or a translated image. You must provide your own matching disc image.
 | Area | Status |
 |---|---|
 | Windows x86-64 native build | Working |
-| Vulkan renderer | Working; tested on an NVIDIA GeForce RTX 5070 |
+| Software renderer | Recommended; sustained full speed in the tested heavy scene |
+| Vulkan renderer | Working with deterministic GS memory ordering; tested on an NVIDIA GeForce RTX 5070 |
+| Output upscaling | FSR 1 EASU + RCAS or linear scaling on Vulkan |
+| Slow-host audio | Adaptive resampling prevents repeated queue starvation in the tested scenes |
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |
 | English-patched image | Recompiles and reaches the same 600-frame run |
 | Static EE recompilation | 8,684 functions in 15 generated packages |
@@ -116,18 +119,34 @@ replace legacy output with verified provenance.
 ```
 
 The launcher offers text language, radio subtitles, renderer, internal
-resolution, fullscreen, and launcher settings. It saves changed options in the
-local runtime data directory; F11 toggles fullscreen in-game. To start directly
-or force the launcher back on:
+resolution, output upscaler, fullscreen, and launcher settings. Software
+rendering is the measured full-speed default. Vulkan enables internal
+resolution scaling; FSR 1 is a spatial EASU + RCAS option for lower internal
+resolutions. It saves changed options in the local runtime data directory; F11
+toggles fullscreen in-game. To start directly or force the launcher back on:
 
 ```powershell
 .\port\macross-recomp.exe --play
 .\port\macross-recomp.exe --launcher
 ```
 
-Alternatively, `.\tools\run.ps1 -Scale 1` explicitly sets `MACROSS_SW=0`
-and `MACROSS_SCALE`, overriding the saved renderer and scale for that run.
-Scale may be set from 1 through 8.
+Alternatively, [`tools\run.ps1`](tools/run.ps1) bypasses the launcher by
+default and explicitly overrides saved rendering options for that run:
+
+```powershell
+# Measured full-speed path
+.\tools\run.ps1 -Renderer Software
+
+# Vulkan at native internal resolution, spatially upscaled to the window
+.\tools\run.ps1 -Renderer Vulkan -Scale 1 -Upscaler FSR1
+
+# Show the launcher instead of starting immediately
+.\tools\run.ps1 -Launcher
+```
+
+Scale may be set from 1 through 8. `-Upscaler` accepts `Linear` or `FSR1`.
+FSR 1 runs only when the presentation target is larger than the internal
+Vulkan image; downscaling remains linear.
 
 A bounded compatibility run is useful for automation:
 
@@ -139,6 +158,10 @@ Headless compatibility runs bypass the launcher and saved player settings.
 Inspect runtime output for the selected renderer, presented-frame count,
 fallback state, and fatal errors. For automated assertions, use the smoke test
 below.
+
+Measured performance, the Vulkan speckle fix, adaptive-audio behavior, and why
+FSR 3, DLSS, and frame generation are not yet viable are documented in
+[Rendering and presentation](docs/engine.md#rendering-and-presentation).
 
 ## Runtime localization
 

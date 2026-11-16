@@ -106,9 +106,89 @@ The Vulkan renderer is therefore below the original engine's packet-building
 layer. Asset conversion is not required merely to run the game, although
 decoding those assets is required for a Blender importer.
 
-The checked-in [`settings.tsv`](../settings.tsv) uses `SW=0`, and
-[`tools/run.ps1`](../tools/run.ps1) sets `MACROSS_SW=0` explicitly. The
-verified run logged a GPU renderer and selected an NVIDIA GeForce RTX 5070.
+## Rendering and presentation
+
+The checked-in [`settings.tsv`](../settings.tsv) selects the software renderer
+for reliable full-speed play. Vulkan remains available for internal-resolution
+scaling and FSR 1. [`tools/run.ps1`](../tools/run.ps1) can select either path
+without opening the launcher.
+
+### Measured performance and audio
+
+The following optimized-build measurements used an NVIDIA GeForce RTX 5070,
+a 1280x960 window, and the same deterministic intro-cutscene interval. Each
+row is the 300-frame report ending at presented frame 1500:
+
+| Renderer | Internal/output scaling | FPS | Work avg / p95 | Present avg | Audio dry | Average audio speed |
+|---|---|---:|---:|---:|---:|---:|
+| Software | Native, SDL presentation | 59.9 | 12.93 / 15.50 ms | 0.72 ms | 0 | 100% |
+| Vulkan | 1x, linear | 52.6 | 18.92 / 19.47 ms | 11.50 ms | 0 | 87% |
+| Vulkan | 1x, FSR 1 | 52.1 | 19.10 / 19.72 ms | 11.66 ms | 0 | 86% |
+| Vulkan | 2x, FSR 1 | 51.0 | 19.54 / 20.33 ms | 12.01 ms | 0 | 84% |
+| Vulkan | 4x, linear downscale | 45.8 | 21.78 / 22.10 ms | 14.18 ms | 0 | 76% |
+
+The software renderer is therefore the current recommendation when smooth
+motion and unmodified audio pitch matter more than supersampling. Vulkan
+remains below the console's 59.94 Hz rate in this scene even at 1x.
+
+The host now estimates sustained emulation speed over a four-field rolling
+window and feeds it to the existing cubic audio resampler. This avoids the
+repeated queue underruns that caused choppy audio; all rows above report zero
+dry events. Slow Vulkan modes remain synchronized by playing audio more slowly
+and at a lower pitch. This is not pitch-preserving time stretch, and it does
+not make a slow renderer full speed.
+
+### Vulkan GS ordering fix
+
+GS local memory was previously accessed by the fragment shader through a
+physical buffer-reference pointer. On the tested RTX 5070, fragment-shader
+pixel interlock did not reliably make those storage writes visible to later
+overlapping primitives. The result was nondeterministic black pixels that
+moved even while the game was paused.
+
+The fragment path now binds GS memory as a conventional coherent Vulkan
+storage-buffer descriptor. Compute shaders retain buffer-device-address
+access. Repeated frame-7200 captures are byte-identical at both 1x and 4x, and
+visual inspection of both captures shows the aircraft without the moving
+black speckles. AMD and Intel validation remains open.
+
+The scanout buffer is also device-local. Host-visible readback is allocated
+and copied only for screenshots, thumbnails, and other CPU consumers rather
+than every presented frame.
+
+### FSR 1 and temporal-upscaling limits
+
+The Vulkan presentation path offers AMD FidelityFX Super Resolution 1.0.2:
+EASU spatial upscaling followed by RCAS sharpening. It operates only on the
+current color image, so it fits the PS2 GS output available here. When either
+internal dimension exceeds the centered 4:3 presentation target, the renderer
+uses the existing linear downscale instead.
+
+FSR 3 temporal upscaling, DLSS Super Resolution, FSR 3 Frame Interpolation,
+and DLSS Frame Generation are not exposed. The current GS renderer does not
+produce the required conventional depth surface, per-pixel motion vectors,
+temporal jitter/history, camera transforms, reactive masks, or UI separation.
+It also lacks the presentation pacing and latency integration required for
+generated frames. AMD's integration guide warns that missing motion vectors
+cause ghosting and that poor temporal inputs amplify artifacts in interpolated
+frames. Frame generation would also be the wrong first optimization while
+real frames in heavy Vulkan scenes remain below 60 FPS.
+
+The public projects surveyed do not establish a PS2 precedent for those
+features:
+
+- PCSX2 exposes FidelityFX Contrast Adaptive Sharpening, not FSR temporal
+  reconstruction.
+- RPCS3 and Xenia contain FSR 1 EASU/RCAS presentation implementations.
+- RT64/Zelda64Recomp matches draw calls, interpolates transforms, and
+  re-renders them; it is not FSR 3 or DLSS optical-flow frame generation.
+- No public PS2 static recompilation or emulator implementation of FSR 3,
+  DLSS Super Resolution, FSR 3 Frame Interpolation, or DLSS Frame Generation
+  was found in the surveyed sources.
+
+Adding DLSS through Streamline would also require a separate compatibility,
+redistribution, and GPL review before any implementation decision. Source
+links and revisions are recorded in [Research sources](sources.md).
 
 ## Models, hierarchy, and motion
 

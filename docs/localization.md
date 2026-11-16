@@ -20,15 +20,17 @@ executable. The runtime executable check is not a whole-disc hash check.
 After [setup](../README.md#build), start `.\port\macross-recomp.exe` from the
 repository root. The launcher offers Japanese disc text, installed
 localization mods, radio subtitles, Vulkan or software rendering, internal
-resolution, fullscreen, and whether to show the launcher on later starts.
+resolution, Vulkan output upscaling, fullscreen, and whether to show the
+launcher on later starts.
 Keyboard, mouse, and controller navigation are implemented; controller
 behavior still needs broader validation. F11 toggles fullscreen in-game.
 
 - `.\port\macross-recomp.exe --play` skips the launcher.
 - `.\port\macross-recomp.exe --launcher` forces it to appear.
-- `.\tools\run.ps1 -Scale 1` forces Vulkan and scale 1 through environment
-  variables, even if the launcher or saved settings choose something else.
-  Its `-Headless` compatibility mode skips the launcher and saved settings.
+- `.\tools\run.ps1 -Renderer Vulkan -Scale 1 -Upscaler FSR1` starts the game
+  directly and overrides saved rendering options through environment
+  variables. Add `-Launcher` to show the launcher instead. Its `-Headless`
+  compatibility mode also skips saved settings.
 
 ### Included mods
 
@@ -66,11 +68,13 @@ the player changes, preserving unrelated player-file rows such as `IRX`,
 `NATIVE`, and unknown settings. An environment override still wins after a
 launcher edit for that run.
 
-The launcher controls `SW`, `SCALE`, `LOC`, `LANG`, `SUBTITLES`, `FULLSCREEN`,
-and `LAUNCHER`. `LOC` is a mod directory name and `LANG` is its selected CSV
-language column. The checked-in repository settings select Vulkan and scale 1;
-without an inherited scale, the non-headless default is 3. The settings and
-controller features are not a substitute for in-game compatibility testing.
+The launcher controls `SW`, `SCALE`, `UPSCALER`, `LOC`, `LANG`, `SUBTITLES`,
+`FULLSCREEN`, and `LAUNCHER`. `UPSCALER` is `linear` or `fsr1`; it affects the
+Vulkan presentation path only. `LOC` is a mod directory name and `LANG` is its
+selected CSV language column. The checked-in repository settings and built-in
+defaults select software rendering, scale 1, and FSR 1 for a later switch to
+Vulkan. The settings and controller features are not a substitute for in-game
+compatibility testing.
 
 ## Subtitles
 
