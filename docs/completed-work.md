@@ -72,8 +72,9 @@ This file is the archive for finished tasks. Active work belongs in
 
 ## 2026-11-16 - Analysis tools
 
-- [x] Implemented a bounds-checked ISO 9660 parser with both-endian
-  validation.
+- [x] Implemented a bounds-checked ISO 9660 parser comparing the PVD volume
+  size and logical block size, and directory-record extent, length, and
+  volume sequence in both byte orders.
 - [x] Implemented embedded CVM discovery and reading.
 - [x] Implemented exact-disc, executable, container, and ELF inventory output.
 - [x] Implemented safe local asset extraction with traversal protection.
@@ -121,3 +122,46 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Added source attribution and research-confidence rules.
 - [x] Moved completed checklist items out of active
   [`TODO.md`](../TODO.md).
+
+## 2026-11-16 - Local runtime localization
+
+- [x] Kept the exported publisher
+  `localization\_base\strings.csv` and locally imported
+  `localization\en-fan\strings.csv` ignored and out of the tracked tree.
+- [x] Added the project-authored 47-string `en-system` executable-message mod
+  and the `en-fan` manifest, which includes it but requires a locally
+  supplied fan table.
+- [x] Added launcher selection, CP932 text conversion, CSV import/checking,
+  mod inclusion, and runtime string replacement without rewriting the image.
+- [x] Preserved inherited settings through environment, player, repository,
+  and global precedence; save only changed launcher options in the player
+  settings while retaining unrelated rows.
+- [x] Added transactional CVM file overlays, including validated in-place or
+  zero-filled spare-sector allocation and read-time metadata updates. A failed
+  installation does not leave a partial read hook.
+- [x] Limited the runtime subtitle change to supported Japanese voiced
+  records with attribute `0`; other values, including the still-unknown `2`
+  and `3`, are preserved.
+- [x] Added synthetic runtime tests for discovery, settings, shadow tables,
+  subtitle attributes, and overlay success/failure paths. Full visual and
+  in-game subtitle coverage remains open.
+
+## 2026-11-16 - Build and validation hardening
+
+- [x] Pinned the ordered framework patch series, including padman handling
+  and the disc-read hook. Setup checks patch state and records generated-source
+  provenance; incremental builds check that provenance. Legacy generated
+  source without it remains usable only with a warning.
+- [x] Hardened ELF disassembly with complete file-backed range checks,
+  corrected R5900 decoding and jump targets, and per-word `.word` fallback;
+  added synthetic ELF tests.
+- [x] Added synthetic ISO/CVM and malformed-directory, MRG offset, ELF, and
+  patched-image trust tests, including exact-disc hash behavior.
+- [x] Added the opt-in [`tests\smoke.ps1`](../tests/smoke.ps1), which builds
+  the pinned, patched framework for the exact original disc and strictly
+  asserts Vulkan selection, compatibility JSON, frame progress, no fallback,
+  and an empty fatal field. Separate synthetic PowerShell tests cover setup
+  forwarding, the smoke contract, and patch application.
+- [x] Documented the exact-disc smoke command and its limits in
+  [`README.md`](../README.md); the earlier 600-frame observations above are
+  not evidence of visual correctness or full-game compatibility.

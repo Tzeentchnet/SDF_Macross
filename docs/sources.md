@@ -10,8 +10,11 @@ size     1,230,897,152 bytes
 SHA-256  221e4137cc1b197b262c58604143d92d2fdb3dd82d6b464870c6bbf1c68a27df
 ```
 
-No image, executable, extracted file, script, or generated native source is
-included in the repository.
+No image, executable, extracted file, publisher script, private fan CSV, or
+generated native source is included in the repository. The 47-string
+[`en-system` table](../localization/en-system/strings.csv) is project-authored;
+the [`en-fan` manifest](../localization/en-fan/mod.tsv) contains no fan text.
+The publisher export and locally imported fan CSV remain ignored.
 
 Local tools used to establish the findings:
 
@@ -23,7 +26,12 @@ Local tools used to establish the findings:
 - [`tools/inspect_mrg.py`](../tools/inspect_mrg.py) - nested archive
   classification/extraction
 - [`tools/disasm_elf.py`](../tools/disasm_elf.py) - optional symbolic
-  disassembly
+  disassembly with validated file-backed ranges and per-word fallback
+- [`tools/loc_csv.py`](../tools/loc_csv.py) - local CSV import, merge, strip,
+  and validation
+- [`tests`](../tests) - synthetic parser/trust, disassembler, localization,
+  patch-state, and smoke-contract fixtures; the separate smoke test requires
+  the user's exact original image and a Vulkan device
 
 ## External sources
 
@@ -39,7 +47,9 @@ Local tools used to establish the findings:
 
 Hashes, dates, and integration policies are machine-readable in
 [`recomp.lock.json`](../recomp.lock.json) and
-[`game.lock.json`](../game.lock.json).
+[`game.lock.json`](../game.lock.json). The ordered local modifications to the
+locked framework are listed in
+[`patches/ps-recomp/series`](../patches/ps-recomp/series).
 
 ## How sources were used
 
@@ -55,7 +65,10 @@ Game-specific statements were then checked against local bytes wherever
 possible. In particular:
 
 - CVM base offsets were found by locating a valid ISO PVD;
-- all ISO both-endian fields are compared;
+- the ISO parser compares the PVD volume size and logical block size, plus
+  each parsed directory record's extent, data length, and volume sequence,
+  in both byte orders; it does not claim to validate every ISO both-endian
+  field;
 - MRG framing was derived from exact nested boundaries;
 - the GFX2OBJ node size is supported by an exact table-to-packet equation;
 - TIM2 picture alignment and sizes are supported by exact payload equations;
@@ -88,4 +101,6 @@ facts, byte offsets, and interoperability observations are recorded in original
 wording.
 
 The translation repository's absence of an explicit license is treated as “no
-permission to vendor,” not as permission by omission.
+permission to vendor,” not as permission by omission. Exported publisher text
+and fan-derived tables remain local even when a CSV conversion removes the
+Japanese column.

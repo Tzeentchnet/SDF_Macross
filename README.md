@@ -17,7 +17,8 @@ code, or a translated image. You must provide your own matching disc image.
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |
 | English-patched image | Recompiles and reaches the same 600-frame run |
 | Static EE recompilation | 8,684 functions in 15 generated packages |
-| Translation integration | External, optional, and reproducibly pinned |
+| Runtime localization | 47 project-authored English system strings; optional local fan translation |
+| Patched-image translation | External, optional, and reproducibly pinned |
 | Full-game compatibility | Not yet established |
 | Release-ready port | No; this is an early bring-up and reverse-engineering project |
 
@@ -38,10 +39,12 @@ Only this image is currently supported:
 | Image SHA-256 | `221e4137cc1b197b262c58604143d92d2fdb3dd82d6b464870c6bbf1c68a27df` |
 | Main executable | `SLPM_654.05` |
 | Executable SHA-1 | `84ff167ee9612966e5027beabb7b920e7cf18920` |
+| Executable SHA-256 | `5e51cf5ecb8f344ccab90f7d99df04ff050fadba025579e4369c4abe0ebe75a1` |
 
 The same region/revision is required because static recompilation depends on
-exact code addresses and function boundaries. Patched translation images are
-accepted only through an explicit trust flag.
+exact code addresses and function boundaries. An image with a changed
+executable requires an explicit trust flag. Without `-ExactDisc`, changes
+elsewhere in a structurally valid image are not authenticated.
 
 ## Requirements
 
@@ -54,9 +57,12 @@ accepted only through an explicit trust flag.
 - Internet access during the first setup, to fetch the pinned framework and
   Odin toolchain
 
-The setup script downloads Odin `dev-2026-10`, verifies its SHA-256, checks out
-the exact framework commit in [recomp.lock.json](recomp.lock.json), builds the
-recompiler, generates native source, and builds the port.
+On first installation, setup downloads Odin `dev-2026-10` and verifies the
+archive SHA-256. It uses the framework commit in
+[recomp.lock.json](recomp.lock.json), applies the ordered
+[framework patch series](patches/ps-recomp/series), builds the recompiler,
+generates native source, and builds the port. Existing tool installations are
+reused.
 
 ## Build
 
@@ -68,8 +74,9 @@ From PowerShell in the repository root:
   -ExactDisc
 ```
 
-`-ExactDisc` hashes the complete image. Without it, setup still validates the
-disc structure, boot target, executable size, and executable hash.
+`-ExactDisc` checks the complete image SHA-256. Without it, setup still
+validates disc size and structure, the boot target, and the executable's size,
+format, and SHA-1.
 
 Generated and downloaded files are kept under ignored paths:
 
@@ -87,14 +94,40 @@ To regenerate source without linking the final executable:
 .\tools\setup.ps1 -Image "F:\path\to\Macross.iso" -RecompileOnly
 ```
 
+For port-source edits after setup, rebuild using the existing generated code:
+
+```powershell
+.\tools\build.ps1
+# Or use -Fast for a minimally optimized debug build.
+```
+
+The incremental build checks generated-source provenance against the locked
+framework, patch series, recompiler configuration, and generated files.
+Recorded mismatches fail the build. Legacy output without provenance is
+accepted with a warning, not proven current; a missing generated
+configuration also produces a warning. Rerun full setup after changing the
+image, framework, patch series, or recompilation configuration, and to
+replace legacy output with verified provenance.
+
 ## Run
 
 ```powershell
-.\tools\run.ps1 -Scale 1
+.\port\macross-recomp.exe
 ```
 
-The runner explicitly sets `MACROSS_SW=0`, selecting the Vulkan GS path rather
-than the software renderer. Scale may be set from 1 through 8.
+The launcher offers text language, radio subtitles, renderer, internal
+resolution, fullscreen, and launcher settings. It saves changed options in the
+local runtime data directory; F11 toggles fullscreen in-game. To start directly
+or force the launcher back on:
+
+```powershell
+.\port\macross-recomp.exe --play
+.\port\macross-recomp.exe --launcher
+```
+
+Alternatively, `.\tools\run.ps1 -Scale 1` explicitly sets `MACROSS_SW=0`
+and `MACROSS_SCALE`, overriding the saved renderer and scale for that run.
+Scale may be set from 1 through 8.
 
 A bounded compatibility run is useful for automation:
 
@@ -102,11 +135,24 @@ A bounded compatibility run is useful for automation:
 .\tools\run.ps1 -Headless -Frames 600
 ```
 
-The headless option still exercises the compatibility path and terminates at
-the requested frame limit. Inspect runtime output for the selected renderer,
-presented-frame count, fallback state, and fatal errors.
+Headless compatibility runs bypass the launcher and saved player settings.
+Inspect runtime output for the selected renderer, presented-frame count,
+fallback state, and fatal errors. For automated assertions, use the smoke test
+below.
 
-## English translation
+## Runtime localization
+
+The included `en-system` mod provides 47 project-authored English
+executable-system messages; untranslated messages and the story remain
+Japanese. The `en-fan` manifest can layer a player-supplied fan CSV over those
+system strings; the fan CSV is not distributed here. Runtime localization,
+radio subtitles, and string export require the original supported executable
+hash and do not modify the disc image.
+
+See [Runtime localization](docs/localization.md) for launcher options, settings
+precedence, local CSV import, subtitle limits, and CVM file overlays.
+
+## External patched-image translation
 
 An existing fan-translation project is supported as an **external checkout**:
 
@@ -136,8 +182,11 @@ Then recompile against the new image:
 ```
 
 `-AllowPatchedImage` is deliberately required because the translation patches
-52 strings in the executable. It relaxes the original executable hash check;
-it does not make arbitrary patched executables safe. Keep the original image
+52 strings in the executable. It relaxes the original executable SHA-1 check,
+not the other structural checks or an explicitly requested exact-disc hash; it
+does not make arbitrary patched executables safe. Runtime localization,
+subtitles, and export independently require the original executable SHA-256,
+so do not enable them on that patched executable. Keep the original image
 read-only and inspect the translation checkout before trusting it.
 
 See [Translation](docs/translation.md) for coverage, quality, script layout,
@@ -188,11 +237,57 @@ python .\tools\inspect_mrg.py `
 All extracted assets are copyrighted game data and must remain in ignored
 local storage.
 
+The optional [`tools/disasm_elf.py`](tools/disasm_elf.py) requires Capstone.
+It validates aligned, file-backed symbol/range boundaries, decodes supported
+R5900 forms, and emits `.word` for unknown instructions instead of stopping.
+
+## Testing
+
+Run synthetic parser, patched-image trust, disassembler, and localization
+tool tests without a game image:
+
+```powershell
+python -m unittest tests.test_disc_image tests.test_inspect_game tests.test_mrg tests.test_disasm_elf tests.test_localization_tools
+.\tests\test_setup_verify.ps1
+.\tests\test_smoke_contract.ps1
+.\tests\test_framework_patches.ps1
+```
+
+The disassembler's real-Capstone integration test is skipped if Capstone is
+unavailable; localization's isolated Odin codec test is skipped if Odin is
+unavailable. The patch tests use synthetic Git fixtures. The PowerShell
+contract tests do not require a disc or GPU.
+
+For the opt-in end-to-end Windows build and Vulkan smoke test, supply the
+**original exact disc**, not a patched image:
+
+```powershell
+.\tests\smoke.ps1 -Image "F:\path\to\Macross.iso" -Frames 600
+```
+
+It runs full setup with `-ExactDisc`, then headless Vulkan at scale 1. It
+requires successful exits, a Vulkan device line, exactly one GPU renderer line,
+and exactly one strictly parsed `compat` JSON record. Duplicate object keys
+are rejected case-insensitively. The record must contain `system: "ps2"`,
+`result: "frames"`, the locked framework commit, integer `frames` at least the
+requested limit, integer `shown` with `0 < shown <= frames`, boolean
+`fallback: false`, and an empty `fatal` string.
+Exactly one matching `frames: ... reached` line is also required. The default
+and minimum are 600 frames. Setup and run timeouts default to 1,800 and 600
+seconds; adjust them with `-SetupTimeoutSeconds` and `-RunTimeoutSeconds`.
+Timeouts stop the child process tree, and inherited `MACROSS_*` overrides are
+cleared.
+
+The smoke test regenerates source, rebuilds the executable, and rewrites
+`local.tsv` for the supplied image. It proves bounded startup and frame
+progress, not visual correctness or a full playthrough.
+
 ## Documentation
 
 - [Engine findings](docs/engine.md)
 - [File formats and Blender-importer notes](docs/file-formats.md)
 - [Framework selection](docs/framework-selection.md)
+- [Runtime localization](docs/localization.md)
 - [Translation support](docs/translation.md)
 - [Recompilation issues](docs/recomp-issues.md)
 - [Research sources](docs/sources.md)
@@ -203,6 +298,9 @@ local storage.
 
 - Do not commit or redistribute the ISO, executable, patched image, extracted
   assets, publisher script, save data, or generated recompiled source.
+- The exported publisher CSV and locally imported fan CSV are ignored; do not
+  commit or redistribute them. The 47-string `en-system` table is
+  project-authored.
 - This project requires users to supply their own copy of the game.
 - The generated port scaffold is derived from the GPL-3.0 `ps-recomp`
   framework; this repository includes the corresponding [LICENSE](LICENSE).

@@ -42,7 +42,9 @@ cdrom0:\SLPM_654.05;1
 ```
 
 The bounded parser in [`tools/disc_image.py`](../tools/disc_image.py) validates
-both-endian ISO fields rather than trusting one copy.
+both byte orders of the PVD volume size and logical block size, and each
+parsed directory record's extent, data length, and volume sequence. It does
+not validate every both-endian field in ISO 9660.
 
 ## CVM / CVMH containers
 
@@ -80,6 +82,14 @@ Inventory:
 | `JPN.CVM` | 70 | 64 CRICMP files, MRG/TIM2 data, icons |
 | `MOV.CVM` | 4 | SFD/MPEG program streams |
 | `ETC.CVM` | 0 | No embedded ISO; exhaustive scan is all zero |
+
+The [runtime overlay](localization.md) can replace existing root-level files
+inside a CVM without editing the image. It validates container and extent
+boundaries, prepares all replacements before installing the read hook, and
+serves updated directory/volume metadata in both byte orders. A larger file
+can move only to verified, unallocated zero sectors in or immediately after
+the CVM; insufficient safe space causes the overlay to fail rather than
+overwrite another extent.
 
 ## CRICMP
 
@@ -537,7 +547,8 @@ magic-less MRG offset-table container.
 
 ## Script formats
 
-See [Translation](translation.md) for full patching behavior.
+See [Translation](translation.md) for external image patching and
+[Runtime localization](localization.md) for read-time replacements.
 
 ### Record strings
 
@@ -547,6 +558,10 @@ See [Translation](translation.md) for full patching behavior.
 [0x00 terminator]
 [directly following zero padding]
 ```
+
+The runtime subtitle option changes attribute byte 2 from `0` to `1` only for
+supported Japanese voiced records. It preserves all other values, including
+`2` and `3`, whose complete semantics remain unverified.
 
 ### Offset-table pools
 

@@ -2,7 +2,7 @@
 
 ## Verified compatibility baseline
 
-Two separate 600-frame compatibility runs have completed:
+Two earlier 600-frame compatibility runs have completed:
 
 | Image | Result |
 |---|---|
@@ -19,21 +19,27 @@ Observed runtime properties:
 - no fatal runtime error.
 
 This baseline should be rerun after any framework, toolchain, recompilation
-configuration, executable patch, or low-level runtime change.
+configuration, executable patch, or low-level runtime change. The new
+[`tests\smoke.ps1`](../tests/smoke.ps1) automates a strict exact-original-disc
+build and bounded Vulkan check; its contract is described in the
+[README](../README.md#testing). It does not assert correct images or gameplay.
 
 ## Known runtime gaps
 
-### Unimplemented SIF operation
+### Previously observed SIF operation
 
-The current run reports:
+An earlier compatibility run reported:
 
 ```text
 SIF server 80000100 fno 20
 ```
 
-The operation needs to be identified from the loaded IOP module and call site,
-then implemented or safely routed through an existing runtime service.
-Suppressing the message without reproducing the operation is not a fix.
+The first [framework patch](../patches/ps-recomp/0001-padman-button-mask-and-warning-level.patch)
+adds padman command `0x14` (`20`) handling for `SetWarningLevel` and fills the
+controller capability mask. The compatibility label can describe a padman
+subcommand as well as an RPC function number; the observed call path and
+behavior still need in-game verification. Suppressing a message without
+reproducing the operation is not a fix.
 
 ### Interpreted IOP code
 
@@ -108,9 +114,17 @@ The difference is intentional: 52 executable-resident system strings are
 patched. [`tools/setup.ps1`](../tools/setup.ps1) requires
 `-AllowPatchedImage`, which maps to the verifier's `--allow-patched` option.
 
-This is a trust gate, not a second identity check. It accepts a structurally
-valid image with a changed executable of the expected size. Only use it for a
-patch generated from a reviewed, pinned translation checkout.
+This is a trust gate, not a second identity check. It waives only the original
+executable SHA-1 requirement; disc size, boot target, executable size and ELF
+structure are still checked. `-ExactDisc` independently enforces the original
+whole-disc hash even with `-AllowPatchedImage`. Only use the relaxed check for
+a patch generated from a reviewed, pinned translation checkout. Without
+`-ExactDisc`, changes outside the executable are not authenticated by that
+executable hash.
+
+Runtime localization, subtitles, file overlays, and string export have a
+separate original-executable SHA-256 gate. `-AllowPatchedImage` does not bypass
+it; disable those features when using an externally patched executable.
 
 ## Generated-code and build concerns
 
@@ -119,6 +133,11 @@ patch generated from a reviewed, pinned translation checkout.
   do not prove matching semantics.
 - Odin is pinned because compiler changes may affect both framework build and
   generated-code behavior.
+- Setup applies the ordered, checked-in framework patch series. Incremental
+  builds validate the framework, patch, configuration, and generated-source
+  provenance; missing legacy provenance is only a warning, not proof of
+  freshness. A missing generated configuration also produces a warning.
+  Rerun setup after changing the disc, framework, patches, or configuration.
 - The source image path is written to ignored `local.tsv`; moving the image
   requires rerunning setup.
 - Recompilation is tied to executable addresses. A different region or
@@ -127,8 +146,10 @@ patch generated from a reviewed, pinned translation checkout.
 ## Translation-specific issues
 
 - The story translation is unreviewed machine translation.
-- Enabling subtitles changes a record attribute for 1,811 lines and should be
-  tested for window overflow in every mission.
+- The external image patch enables 1,811 captions. The separate runtime
+  subtitle option changes only attribute `0` to `1` for supported Japanese
+  voiced records, preserving other values including `2` and `3`. Their
+  semantics and window overflow still need in-game validation.
 - English wraps by character count rather than word boundaries.
 - Art-based Japanese remains in TIM2 textures.
 - If the rebuilt `BOOTDAT.CMP` changes length, both ISO 9660 little- and

@@ -23,11 +23,6 @@ contains only unfinished work.
 
 ## Recompiler and build
 
-- [ ] Add focused automated tests for ISO both-endian fields, CVM discovery,
-  malformed directory records, MRG offset validation, and patched-image trust
-  handling.
-- [ ] Add a PowerShell smoke test that builds the pinned revision and asserts
-  Vulkan selection, frame progress, `fallback: false`, and no fatal error.
 - [ ] Decide how to package a release without redistributing the ISO, extracted
   files, generated code derived from the executable, or translation content.
 - [ ] Recheck upstream maintenance before each dependency update and record the
