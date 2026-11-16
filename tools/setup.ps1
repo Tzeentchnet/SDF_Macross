@@ -23,6 +23,7 @@ $BuildRoot = Join-Path $Root ".build"
 $LocalRoot = Join-Path $Root ".local"
 
 . (Join-Path $PSScriptRoot "framework-patches.ps1")
+. (Join-Path $PSScriptRoot "setup-verification.ps1")
 
 function Invoke-Checked {
     param(
@@ -119,16 +120,10 @@ function Get-Framework {
 }
 
 $Python = (Get-Command python -ErrorAction Stop).Source
-$VerifyArguments = @(
-    (Join-Path $PSScriptRoot "inspect_game.py"),
-    $ImagePath
-)
-if ($ExactDisc) {
-    $VerifyArguments += "--exact"
-}
-if ($AllowPatchedImage) {
-    $VerifyArguments += "--allow-patched"
-}
+$VerifyArguments = Get-SetupVerificationArguments `
+    -InspectorPath (Join-Path $PSScriptRoot "inspect_game.py") `
+    -ImagePath $ImagePath -ExactDisc:$ExactDisc `
+    -AllowPatchedImage:$AllowPatchedImage
 Invoke-Checked $Python $VerifyArguments
 
 Get-Framework
