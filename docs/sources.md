@@ -12,9 +12,11 @@ SHA-256  221e4137cc1b197b262c58604143d92d2fdb3dd82d6b464870c6bbf1c68a27df
 
 No image, executable, extracted file, publisher script, private fan CSV, or
 generated native source is included in the repository. The 47-string
-[`en-system` table](../localization/en-system/strings.csv) is project-authored;
-the [`en-fan` manifest](../localization/en-fan/mod.tsv) contains no fan text.
-The publisher export and locally imported fan CSV remain ignored.
+[`en-system` table](../localization/en-system/strings.csv), multilingual
+release CSV, and runtime translation functions are project-created release
+content. The [`en-fan` manifest](../localization/en-fan/mod.tsv) contains no
+fan text; the publisher export and any locally imported third-party fan CSV
+remain ignored and outside the release.
 
 Local tools used to establish the findings:
 

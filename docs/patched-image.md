@@ -1,4 +1,10 @@
-# Translation support
+# External patched-image workflow
+
+This is an advanced interoperability reference for the pinned third-party ISO
+patcher. It is separate from the release's runtime localization system.
+Translators who want to add or review a language should start with the
+[localization contributor tutorial](localization.md#tutorial-add-a-language);
+they do not need to patch an ISO or executable.
 
 ## Existing project
 
@@ -15,6 +21,11 @@ Pinned revision:
 No explicit license was found in that revision. For that reason this repository
 does not vendor, modify, or redistribute its code or translation data. The
 integration wrapper accepts a user-provided checkout.
+
+The revision is pinned in [`recomp.lock.json`](../recomp.lock.json). Check out
+that revision and install its CRICMP dependency before invoking the wrapper.
+Keep the original image read-only and inspect the external checkout before
+trusting it.
 
 ## Coverage
 
@@ -88,6 +99,17 @@ Build the native port against the result:
   -Image ".local\Macross-full-subtitles.iso" `
   -AllowPatchedImage
 ```
+
+## Patched-image trust boundary
+
+`-AllowPatchedImage` is deliberately required because the translation patches
+52 strings in the executable. It relaxes the original executable SHA-1 check,
+not the other structural checks or an explicitly requested exact-disc hash,
+and does not make arbitrary patched executables safe.
+
+Runtime localization, subtitles, and export independently require the original
+executable SHA-256. Do not enable those runtime features on the externally
+patched executable.
 
 ## Script storage
 
@@ -208,6 +230,14 @@ The following are texture-driven rather than ordinary script strings:
 
 These assets contain TIM2 textures and require an art replacement pipeline.
 Their presence does not indicate a missing text record.
+
+The runtime localization workflow now includes a focused pipeline for all 21
+`SBTTL_*.CMP` stage-title textures. It exports local reference PNGs and a title
+TSV, can draft the title columns with the same offline model, and renders
+language-specific CRICMP overlays without rebuilding the executable or disc.
+See [localized stage-title art](localization.md#localized-stage-title-art).
+Logos and the other decorated `MENU2D` regions are not yet generalized by
+that tool.
 
 ## Repository hygiene
 

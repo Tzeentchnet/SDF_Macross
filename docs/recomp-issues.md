@@ -22,7 +22,8 @@ This baseline should be rerun after any framework, toolchain, recompilation
 configuration, executable patch, or low-level runtime change. The new
 [`tests\smoke.ps1`](../tests/smoke.ps1) automates a strict exact-original-disc
 build and bounded Vulkan check; its contract is described in the
-[README](../README.md#testing). It does not assert correct images or gameplay.
+[testing guide](testing.md#end-to-end-windows-smoke-test). It does not assert
+correct images or gameplay.
 
 ## Known runtime gaps
 
@@ -53,10 +54,12 @@ on converting every IOP instruction preemptively.
 
 ### Uncaptured VU microcode
 
-No VU1 programs were captured during the initial export. The game can build or
-upload microprograms at runtime, so the current runtime must interpret those
-paths. Capture should cover multiple missions, model types, effects, and movie
-or menu scenes before treating the set as complete.
+No VU1 programs were present in the initial export. The game can build or
+upload microprograms at runtime, so unvisited paths still run in the
+interpreter. The private 71-program capture now converges on the scripted
+first- and second-mission routes, but capture should still cover every route,
+model type, effect, and movie or menu scene before treating the set as
+complete.
 
 An incomplete static VU set can be more dangerous than explicit interpretation
 if it incorrectly assumes a dynamic program is known.

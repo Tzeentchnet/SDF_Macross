@@ -1,7 +1,7 @@
 # Completed work
 
 This file is the archive for finished tasks. Active work belongs in
-[`TODO.md`](../TODO.md).
+[`TODO.md`](TODO.md).
 
 ## 2026-11-16 - Disc identification and safety
 
@@ -121,7 +121,7 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Documented translation quality, coverage, patching, and legal boundaries.
 - [x] Added source attribution and research-confidence rules.
 - [x] Moved completed checklist items out of active
-  [`TODO.md`](../TODO.md).
+  [`TODO.md`](TODO.md).
 
 ## 2026-11-16 - Local runtime localization
 
@@ -131,6 +131,9 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Added the project-authored 47-string `en-system` executable-message mod
   and the `en-fan` manifest, which includes it but requires a locally
   supplied fan table.
+- [x] Created the multilingual translation CSV and runtime translation
+  functions for release packaging while keeping the raw publisher export,
+  Japanese source column, and optional third-party imports private.
 - [x] Added launcher selection, CP932 text conversion, CSV import/checking,
   mod inclusion, and runtime string replacement without rewriting the image.
 - [x] Preserved inherited settings through environment, player, repository,
@@ -207,6 +210,18 @@ This file is the archive for finished tasks. Active work belongs in
   frame 8700 from 39.9 to 59.9 FPS. The clean 15,000-frame Vulkan 1x linear
   route held 59.9-60.0 FPS at every recorded gameplay checkpoint with 100%
   audio speed.
+- [x] Confirmed that the opening movie and scripted second-mission action
+  route add no VU1 programs to the converged 71-program capture. Batched the
+  movie's 1,120 repeated 16x16 texture replacements through immutable upload
+  data and one final local-memory write, reducing a steady frame from 1,121
+  draws and 3,364 barriers to two draws and six barriers. Scale-1 output is
+  bit-identical to the software GS, and the movie now holds 60 FPS with 100%
+  audio speed. Restricted the path to the exact Sofdec scratch texture after
+  the broader guard admitted gameplay uploads.
+- [x] Corrected FSR 1 presentation into Windows `B8G8R8A8` swapchains by
+  packing the final RCAS output as BGRA. Internal software and Vulkan frames
+  were already identical; the error affected only the presented window and
+  caused blue character art and red rather than blue thrusters.
 - [x] Surveyed PCSX2, RPCS3, Xenia, RT64/Zelda64Recomp, AMD FSR 3, and NVIDIA
   Streamline. Documented the missing temporal inputs and pacing work instead
   of exposing nonfunctional FSR 3, DLSS, or frame-generation options.

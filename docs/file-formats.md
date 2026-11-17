@@ -547,8 +547,9 @@ magic-less MRG offset-table container.
 
 ## Script formats
 
-See [Translation](translation.md) for external image patching and
-[Runtime localization](localization.md) for read-time replacements.
+See the [external patched-image workflow](patched-image.md) for legacy image
+patching and the [localization contributor guide](localization.md) for
+read-time replacements and adding languages.
 
 ### Record strings
 

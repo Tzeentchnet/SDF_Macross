@@ -8,28 +8,8 @@ uses a Vulkan 1.3 renderer supplied by the pinned `ps-recomp` runtime.
 The project does **not** contain the game, extracted assets, generated game
 code, or a translated image. You must provide your own matching disc image.
 
-## Current status
-
-| Area | Status |
-|---|---|
-| Windows x86-64 native build | Working |
-| Software renderer | Compatibility fallback; ~31 FPS on the animated main menu after focused fast paths |
-| Vulkan renderer | Recommended; deterministic GS memory ordering and 59.9 FPS on the tested main menu and scripted first-mission route |
-| Output upscaling | FSR 1 EASU + RCAS or linear scaling on Vulkan |
-| Audio | Adaptive slow-host pacing plus ordered SPU2 block-transfer capture; no severe jumps in the deterministic menu capture |
-| Original Japanese image | Reaches a bounded 600-frame compatibility run |
-| English-patched image | Recompiles and reaches the same 600-frame run |
-| Static EE recompilation | 8,684 functions in 15 generated packages |
-| Runtime VU1 programs | Private local captures can be compiled; the scripted first-mission route covers 71 programs |
-| Runtime localization | 47 project-authored English system strings; optional local fan translation |
-| Patched-image translation | External, optional, and reproducibly pinned |
-| Full-game compatibility | Not yet established |
-| Release-ready port | No; this is an early bring-up and reverse-engineering project |
-
-The successful compatibility run proves that the native executable starts,
-selects the PS2 Vulkan GS renderer, and presents frames. It does not yet prove
-that every mission, save path, audio path, movie, controller, or ending works.
-See [Recompilation issues](docs/recomp-issues.md) and [TODO.md](TODO.md).
+See [Current status](docs/status.md) for implemented features, measured
+renderer coverage, and the remaining compatibility limitations.
 
 ## Supported disc
 
@@ -160,6 +140,14 @@ launcher back on:
 .\port\macross-recomp.exe --launcher
 ```
 
+Localization mods can expose multiple friendly language choices from one
+table. Runtime glyph packs add Latin diacritics, Simplified Chinese, and
+Ukrainian characters without recompiling, while language-scoped file overlays
+can replace stage-title art. The release project will ship the project-created
+multilingual translation CSV and runtime translation functions. The offline
+generation, review, font, UI, and title-card workflow is documented in the
+[localization contributor tutorial](docs/localization.md#tutorial-add-a-language).
+
 Alternatively, [`tools\run.ps1`](tools/run.ps1) bypasses the launcher by
 default and explicitly overrides saved rendering options for that run:
 
@@ -186,8 +174,8 @@ A bounded compatibility run is useful for automation:
 
 Headless compatibility runs bypass the launcher and saved player settings.
 Inspect runtime output for the selected renderer, presented-frame count,
-fallback state, and fatal errors. For automated assertions, use the smoke test
-below.
+fallback state, and fatal errors. For automated assertions, use the
+[end-to-end smoke test](docs/testing.md#end-to-end-windows-smoke-test).
 
 Measured performance, the Vulkan speckle fix, adaptive-audio behavior, and why
 FSR 3, DLSS, and frame generation are not yet viable are documented in
@@ -195,165 +183,49 @@ FSR 3, DLSS, and frame generation are not yet viable are documented in
 
 ## Runtime localization
 
-The included `en-system` mod provides 47 project-authored English
-executable-system messages; untranslated messages and the story remain
-Japanese. The `en-fan` manifest can layer a player-supplied fan CSV over those
-system strings; the fan CSV is not distributed here. Runtime localization,
-radio subtitles, and string export require the original supported executable
-hash and do not modify the disc image.
+The release project includes the project-created multilingual translation CSV
+and runtime translation functions for Mexican Spanish, Brazilian Portuguese,
+Simplified Chinese, French, German, Hungarian, and Ukrainian. The generated
+language columns remain unreviewed machine translations. The included
+`en-system` mod separately provides 47 project-authored English
+executable-system messages, and `en-fan` remains an optional private-import
+workflow for player-supplied third-party text. Runtime localization, radio
+subtitles, and string export require the original supported executable hash
+and do not modify the disc image.
 
-See [Runtime localization](docs/localization.md) for launcher options, settings
-precedence, local CSV import, subtitle limits, and CVM file overlays.
+See the [localization contributor guide](docs/localization.md) to add or review
+a language and for launcher options, local CSV import, font packs, UI art,
+subtitle limits, and CVM file overlays.
 
-## External patched-image translation
-
-An existing fan-translation project is supported as an **external checkout**:
-
-<https://github.com/chummy778/Macross-PS2-Fan-Translation-Tooling>
-
-It is not vendored because no explicit license was found in the pinned
-revision. The full story translation is machine-produced and has not been
-reviewed by a Japanese-speaking human.
-
-After checking out the pinned revision from [recomp.lock.json](recomp.lock.json)
-and installing its CRICMP dependency, build a translated image with:
-
-```powershell
-.\tools\translate.ps1 `
-  -Image "F:\path\to\Macross.iso" `
-  -TranslationTools ".deps\macross-translation" `
-  -Mode Full `
-  -Subtitles
-```
-
-Then recompile against the new image:
-
-```powershell
-.\tools\setup.ps1 `
-  -Image ".local\Macross-full.iso" `
-  -AllowPatchedImage
-```
-
-`-AllowPatchedImage` is deliberately required because the translation patches
-52 strings in the executable. It relaxes the original executable SHA-1 check,
-not the other structural checks or an explicitly requested exact-disc hash; it
-does not make arbitrary patched executables safe. Runtime localization,
-subtitles, and export independently require the original executable SHA-256,
-so do not enable them on that patched executable. Keep the original image
-read-only and inspect the translation checkout before trusting it.
-
-See [Translation](docs/translation.md) for coverage, quality, script layout,
-subtitle behavior, and container rebuilding details.
-
-## Analysis tools
-
-Create a complete disc/container/ELF inventory:
-
-```powershell
-python .\tools\inspect_game.py `
-  "F:\path\to\Macross.iso" `
-  --exact `
-  --exhaustive-zero-check `
-  --json ".build\analysis\game-manifest.json"
-```
-
-Extract files from an embedded CVM into an ignored local directory:
-
-```powershell
-python .\tools\extract_assets.py `
-  "F:\path\to\Macross.iso" `
-  BIN.CVM `
-  ".build\analysis\bin"
-```
-
-Extract and decompress `.CMP` files with a locally built CRICMP executable:
-
-```powershell
-python .\tools\extract_assets.py `
-  "F:\path\to\Macross.iso" `
-  BIN.CVM `
-  ".build\analysis\bin" `
-  --pattern "*.CMP" `
-  --cricmp ".deps\cricmp\cricmp.exe" `
-  --decompress-cmp
-```
-
-Inspect or extract a nested MRG tree:
-
-```powershell
-python .\tools\inspect_mrg.py ".build\analysis\bin\VF1J_AC.CMP.bin"
-python .\tools\inspect_mrg.py `
-  ".build\analysis\bin\VF1J_AC.CMP.bin" `
-  --extract ".build\analysis\vf1j-leaves"
-```
-
-All extracted assets are copyrighted game data and must remain in ignored
-local storage.
-
-The optional [`tools/disasm_elf.py`](tools/disasm_elf.py) requires Capstone.
-It validates aligned, file-backed symbol/range boundaries, decodes supported
-R5900 forms, and emits `.word` for unknown instructions instead of stopping.
-
-## Testing
-
-Run synthetic parser, patched-image trust, disassembler, and localization
-tool tests without a game image:
-
-```powershell
-python -m unittest tests.test_disc_image tests.test_inspect_game tests.test_mrg tests.test_disasm_elf tests.test_localization_tools
-.\tests\test_setup_verify.ps1
-.\tests\test_smoke_contract.ps1
-.\tests\test_framework_patches.ps1
-```
-
-The disassembler's real-Capstone integration test is skipped if Capstone is
-unavailable; localization's isolated Odin codec test is skipped if Odin is
-unavailable. The patch tests use synthetic Git fixtures. The PowerShell
-contract tests do not require a disc or GPU.
-
-For the opt-in end-to-end Windows build and Vulkan smoke test, supply the
-**original exact disc**, not a patched image:
-
-```powershell
-.\tests\smoke.ps1 -Image "F:\path\to\Macross.iso" -Frames 600
-```
-
-It runs full setup with `-ExactDisc`, then headless Vulkan at scale 1. It
-requires successful exits, a Vulkan device line, exactly one GPU renderer line,
-and exactly one strictly parsed `compat` JSON record. Duplicate object keys
-are rejected case-insensitively. The record must contain `system: "ps2"`,
-`result: "frames"`, the locked framework commit, integer `frames` at least the
-requested limit, integer `shown` with `0 < shown <= frames`, boolean
-`fallback: false`, and an empty `fatal` string.
-Exactly one matching `frames: ... reached` line is also required. The default
-and minimum are 600 frames. Setup and run timeouts default to 1,800 and 600
-seconds; adjust them with `-SetupTimeoutSeconds` and `-RunTimeoutSeconds`.
-Timeouts stop the child process tree, and inherited `MACROSS_*` overrides are
-cleared.
-
-The smoke test regenerates source, rebuilds the executable, and rewrites
-`local.tsv` for the supplied image. It proves bounded startup and frame
-progress, not visual correctness or a full playthrough.
+The separate [external patched-image workflow](docs/patched-image.md) is an
+advanced compatibility reference for a third-party ISO patcher; translators
+do not need it to add a runtime language. Disc and asset inspection commands
+are in [Analysis tools](docs/analysis-tools.md), and validation workflows are
+in [Testing](docs/testing.md).
 
 ## Documentation
 
+- [Analysis tools](docs/analysis-tools.md)
+- [Current status](docs/status.md)
 - [Engine findings](docs/engine.md)
 - [File formats and Blender-importer notes](docs/file-formats.md)
 - [Framework selection](docs/framework-selection.md)
-- [Runtime localization](docs/localization.md)
-- [Translation support](docs/translation.md)
+- [Localization contributor guide](docs/localization.md)
+- [Testing](docs/testing.md)
+- [External patched-image workflow](docs/patched-image.md)
 - [Recompilation issues](docs/recomp-issues.md)
 - [Research sources](docs/sources.md)
 - [Completed work](docs/completed-work.md)
-- [Remaining work](TODO.md)
+- [Remaining work](docs/TODO.md)
 
 ## Legal and repository boundaries
 
 - Do not commit or redistribute the ISO, executable, patched image, extracted
   assets, publisher script, save data, or generated recompiled source.
-- The exported publisher CSV and locally imported fan CSV are ignored; do not
-  commit or redistribute them. The 47-string `en-system` table is
-  project-authored.
+- The project-created multilingual translation CSV, runtime translation
+  functions, and 47-string `en-system` table are release content. The raw
+  publisher export, original Japanese source column, and optional locally
+  imported third-party fan CSV remain ignored and are not release content.
 - This project requires users to supply their own copy of the game.
 - The generated port scaffold is derived from the GPL-3.0 `ps-recomp`
   framework; this repository includes the corresponding [LICENSE](LICENSE).

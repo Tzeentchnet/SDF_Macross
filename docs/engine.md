@@ -177,6 +177,38 @@ p95 to 5.48 / 7.77 ms, with presentation falling from 9.87 to 0.23 ms.
 Windowed Vulkan 1x linear then held 59.9-60.0 FPS at frames 8100, 8400, 8700,
 9000, 12000, and 14700 with 100% audio speed and correct captured images.
 
+### Opening-movie tile uploads
+
+A full `VU_CAPTURE=miss` pass through the opening Sofdec movie and a
+20,000-frame second-mission action route added no bytes to the 71-program
+capture. Runtime-uploaded VU code was therefore not the cause of either
+reported slowdown.
+
+The opening movie instead uploaded and immediately sampled the same complete
+16x16 PSMCT32 texture once for each of its 1,120 screen tiles. The generic
+Vulkan path serialized every mutation through local memory, decoded the
+texture again, and split the draw stream. A steady movie frame consequently
+recorded 1,120 uploads, 1,120 decodes, 1,121 draws, and 3,364 global barriers.
+It ran at roughly 44-49 FPS and reduced adaptive audio speed to 74-82%.
+
+At scales 1x and 2x, complete uploads to the observed Sofdec scratch texture
+(PSMCT32, base pointer 13456, buffer width 1, 16x16 pixels) now retain
+immutable pixels in the slot's upload ring for the immediately following,
+non-overlapping textured draw. Consecutive replacements can then share one
+draw batch; only the last upload is committed to local memory before another
+consumer or the frame boundary. A broader complete-upload guard also admitted
+ordinary gameplay textures and correlated with transformation hitches and
+audio underruns, so every other destination, format, size, render-to-texture,
+partial, paletted, mipmapped, or overlapping transfer keeps the generic
+device-local path. The movie workload falls to two draws, one final upload,
+no texture-decode dispatch, and six global barriers per frame.
+
+The scale-1 Vulkan output at movie frame 1500 is pixel-identical to both the
+unbatched Vulkan path and the software GS. The focused hardware-GS regression
+also compares unique replacement tiles bit for bit at scales 1x and 2x. The
+optimized 300-frame movie interval holds 60.0 FPS, 5.35 ms average work,
+8.54 ms p95, 0.23 ms presentation, and 100% audio speed.
+
 The host estimates sustained emulation speed over disjoint four-field groups
 and feeds it to the existing cubic audio resampler. A single moderately slow
 group is treated as scheduling jitter unless the next group is also slow;
@@ -248,6 +280,14 @@ EASU spatial upscaling followed by RCAS sharpening. It operates only on the
 current color image, so it fits the PS2 GS output available here. When either
 internal dimension exceeds the centered 4:3 presentation target, the renderer
 uses the existing linear downscale instead.
+
+FSR writes its final pixels through a buffer-to-swapchain copy. Windows
+commonly exposes a `B8G8R8A8` swapchain, so packing that buffer as RGBA swaps
+red and blue only in the presented window even though GS screenshots and the
+software/Vulkan frame data remain correct. The RCAS output now packs BGRA for
+that surface and RGBA for `R8G8B8A8`; unrecognized swapchain formats fall back
+to the image-blit path. This corrects blue character art and red ship
+thrusters without changing texture, CLUT, or GS framebuffer interpretation.
 
 FSR 3 temporal upscaling, DLSS Super Resolution, FSR 3 Frame Interpolation,
 and DLSS Frame Generation are not exposed. The current GS renderer does not

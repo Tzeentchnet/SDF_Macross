@@ -1,7 +1,7 @@
 # Remaining work
 
 Completed milestones are recorded in
-[docs/completed-work.md](docs/completed-work.md). This file intentionally
+[completed-work.md](completed-work.md). This file intentionally
 contains only unfinished work.
 
 ## Runtime compatibility
@@ -12,17 +12,20 @@ contains only unfinished work.
   function `20`.
 - [ ] Extend the private VU1 capture beyond the converged 15,000-frame
   first-mission/action route to every route, mission, and effect; repeat
-  miss-capture convergence and compiled-versus-interpreted verification.
+  miss-capture convergence and compiled-versus-interpreted verification. The
+  scripted 20,000-frame second-mission action route adds no new programs.
 - [ ] Reduce interpreted IOP execution by identifying hot modules and selecting
   a safe recompilation or HLE strategy for each.
 - [ ] Validate controller mapping, analog input, vibration, memory-card
-  creation/load/save, audio mixing, ADX streaming, and SFD playback.
+  creation/load/save, audio mixing, ADX streaming, and SFD playback beyond
+  the now full-speed tested opening movie.
 - [ ] Test Vulkan behavior on AMD and Intel hardware and on more than one
   driver version.
 - [ ] Profile remaining missions and effects for Vulkan GS hazards. The
-  scripted first-mission/action route now sustains 59.94 Hz after correcting
-  false texture-page overlap; frame generation is not a substitute for real
-  full-speed frames.
+  scripted first-mission route sustains 59.94 Hz after correcting false
+  texture-page overlap. Revalidate the second-mission transformation route
+  now that direct upload batching is restricted to the Sofdec scratch texture;
+  frame generation is not a substitute for real full-speed frames.
 - [ ] Validate FSR 1 across AMD and Intel hardware, fullscreen, window
   resizing, ultrawide letterboxing, and representative 1x/2x scenes.
 - [ ] Evaluate pitch-preserving time stretch if lower-pitched adaptive audio
@@ -35,8 +38,10 @@ contains only unfinished work.
 
 ## Recompiler and build
 
-- [ ] Decide how to package a release without redistributing the ISO, extracted
-  files, generated code derived from the executable, or translation content.
+- [ ] Package the project-created multilingual translation CSV and runtime
+  translation functions while excluding the ISO, extracted files, generated
+  code derived from the executable, raw publisher export, Japanese source
+  column, optional third-party imports, and publisher-derived rendered assets.
 - [ ] Recheck upstream maintenance before each dependency update and record the
   new commit/date/license evidence before changing the lock file.
 
