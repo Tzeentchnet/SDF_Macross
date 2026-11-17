@@ -23,7 +23,7 @@ import loc_csv
 import mrg
 
 
-LOCALES = ("es-MX", "pt-BR", "zh-Hans", "fr", "de", "hu", "uk")
+LOCALES = ("en", "es-MX", "pt-BR", "zh-Hans", "fr", "de", "hu", "uk")
 WIDTH = 512
 HEIGHT = 128
 IMAGE_SIZE = WIDTH * HEIGHT // 2

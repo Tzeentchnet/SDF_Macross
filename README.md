@@ -127,17 +127,26 @@ replace legacy output with verified provenance.
 .\port\macross-recomp.exe
 ```
 
-The launcher offers text language, radio subtitles, renderer, internal
-resolution, output upscaler, fullscreen, and launcher settings. Vulkan is the
-measured full-speed default and enables internal resolution scaling; FSR 1 is a
-spatial EASU + RCAS option for lower internal resolutions. Software remains a
-compatibility fallback. Changed options are saved in the local runtime data
-directory; F11 toggles fullscreen in-game. To start directly or force the
-launcher back on:
+The launcher offers text language, an independent English system-message
+overlay, radio subtitles, renderer, coordinated render presets, internal
+resolution, output upscaler, fullscreen, and launcher settings. `Performance`
+uses 1x with FSR 1, `Balanced` uses 2x with FSR 1, and `Quality` uses 3x with
+linear output; other manually selected combinations appear as `Custom`.
+Vulkan is the measured full-speed default and enables internal resolution
+scaling; FSR 1 is a spatial EASU + RCAS option for lower internal resolutions.
+Software remains a compatibility fallback. Changed options are saved in the
+local runtime data directory; F11 toggles fullscreen in-game. To start
+directly or force the launcher back on:
 
 ```powershell
 .\port\macross-recomp.exe --play
 .\port\macross-recomp.exe --launcher
+```
+
+String-table export is command-line only and exits after writing the CSV:
+
+```powershell
+.\port\macross-recomp.exe --export-strings .\localization\_base\strings.csv
 ```
 
 Localization mods can expose multiple friendly language choices from one
@@ -184,14 +193,14 @@ FSR 3, DLSS, and frame generation are not yet viable are documented in
 ## Runtime localization
 
 The release project includes the project-created multilingual translation CSV
-and runtime translation functions for Mexican Spanish, Brazilian Portuguese,
-Simplified Chinese, French, German, Hungarian, and Ukrainian. The generated
-language columns remain unreviewed machine translations. The included
-`en-system` mod separately provides 47 project-authored English
-executable-system messages, and `en-fan` remains an optional private-import
-workflow for player-supplied third-party text. Runtime localization, radio
-subtitles, and string export require the original supported executable hash
-and do not modify the disc image.
+and runtime translation functions for English, Mexican Spanish, Brazilian
+Portuguese, Simplified Chinese, French, German, Hungarian, and Ukrainian. The
+generated language columns remain unreviewed machine translations. The
+independent `en-system` launcher option overlays 47 project-authored English
+executable-system messages on any selected text language, and `en-fan` remains
+an optional private-import workflow for player-supplied third-party text.
+Runtime localization, radio subtitles, and string export require the original
+supported executable hash and do not modify the disc image.
 
 See the [localization contributor guide](docs/localization.md) to add or review
 a language and for launcher options, local CSV import, font packs, UI art,

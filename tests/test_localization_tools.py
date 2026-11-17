@@ -687,9 +687,11 @@ class StageTitleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot derive"):
             loc_art.stage_label("SBTTL_OTHER.CMP")
         self.assertEqual(
-            loc_art.assignment(["all=font.ttf", "uk=uk.ttf"], "--font"),
-            {"all": "font.ttf", "uk": "uk.ttf"},
+            loc_art.assignment(["all=font.ttf", "en=en.ttf", "uk=uk.ttf"], "--font"),
+            {"all": "font.ttf", "en": "en.ttf", "uk": "uk.ttf"},
         )
+        self.assertEqual(loc_mt.LOCALES["en"], "eng_Latn")
+        self.assertNotIn("en", loc_mt.DEFAULT_LOCALES)
         with self.assertRaises(SystemExit):
             loc_art.assignment(["xx=font.ttf"], "--font")
         with self.assertRaises(SystemExit):

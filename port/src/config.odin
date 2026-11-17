@@ -8,6 +8,7 @@
 //   UPSCALER   linear or fsr1                             (runtime setting)
 //   LOC        localization mod: a folder in localization/, "" for the disc's text
 //   LANG       the language column of that mod's strings.csv
+//   SYSTEM_EN  1 overlays the project-authored English system messages
 //   SUBTITLES  1 captions radio lines that are voice-only on the disc
 //   FULLSCREEN 1 starts in borderless fullscreen (F11 toggles it)
 //   LAUNCHER   0 starts the game directly; --launcher shows it anyway
@@ -26,17 +27,20 @@ Upscaler :: enum {
 	Fsr1,
 }
 
+SYSTEM_MOD_ID :: "en-system"
+
 Config :: struct {
-	software:   bool,
-	scale:      int,
-	upscaler:   Upscaler,
-	loc:        string,
-	lang:       string,
-	subtitles:  bool,
-	fullscreen: bool,
-	launcher:   bool,
-	source:     [Config_Option]Config_Source,
-	dirty:      bit_set[Config_Option],
+	software:       bool,
+	scale:          int,
+	upscaler:       Upscaler,
+	loc:            string,
+	lang:           string,
+	system_english: bool,
+	subtitles:      bool,
+	fullscreen:     bool,
+	launcher:       bool,
+	source:         [Config_Option]Config_Source,
+	dirty:          bit_set[Config_Option],
 }
 
 CONFIG_DEFAULT :: Config {
@@ -52,6 +56,7 @@ Config_Option :: enum {
 	Upscaler,
 	Loc,
 	Lang,
+	System_English,
 	Subtitles,
 	Fullscreen,
 	Launcher,
@@ -63,6 +68,7 @@ CONFIG_NAMES :: [Config_Option]string {
 	.Upscaler  = "UPSCALER",
 	.Loc       = "LOC",
 	.Lang      = "LANG",
+	.System_English = "SYSTEM_EN",
 	.Subtitles = "SUBTITLES",
 	.Fullscreen = "FULLSCREEN",
 	.Launcher  = "LAUNCHER",
@@ -147,6 +153,7 @@ config_resolve :: proc(local, repository, global, environment: Config_Rows, head
 	}
 	if c.source[.Loc] != .Default {c.loc = strings.clone(values[.Loc])}
 	if c.source[.Lang] != .Default {c.lang = strings.clone(values[.Lang])}
+	if c.source[.System_English] != .Default {c.system_english = config_bool(values[.System_English])}
 	if c.source[.Subtitles] != .Default {c.subtitles = config_bool(values[.Subtitles])}
 	if c.source[.Fullscreen] != .Default {c.fullscreen = config_bool(values[.Fullscreen])}
 	if c.source[.Launcher] != .Default {c.launcher = config_bool(values[.Launcher])}
@@ -198,6 +205,7 @@ config_serialize :: proc(original: string, c: Config, allocator := context.alloc
 		case .Upscaler: fmt.sbprintf(&sb, "UPSCALER\t%s\n", c.upscaler == .Fsr1 ? "fsr1" : "linear")
 		case .Loc: fmt.sbprintf(&sb, "LOC\t%s\n", c.loc)
 		case .Lang: fmt.sbprintf(&sb, "LANG\t%s\n", c.lang)
+		case .System_English: fmt.sbprintf(&sb, "SYSTEM_EN\t%s\n", b01(c.system_english))
 		case .Subtitles: fmt.sbprintf(&sb, "SUBTITLES\t%s\n", b01(c.subtitles))
 		case .Fullscreen: fmt.sbprintf(&sb, "FULLSCREEN\t%s\n", b01(c.fullscreen))
 		case .Launcher: fmt.sbprintf(&sb, "LAUNCHER\t%s\n", b01(c.launcher))

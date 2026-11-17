@@ -24,6 +24,7 @@ import loc_csv
 
 SOURCE_LANGUAGE = "jpn_Jpan"
 LOCALES = {
+    "en": "eng_Latn",
     "es-MX": "spa_Latn",
     "pt-BR": "por_Latn",
     "zh-Hans": "zho_Hans",
@@ -32,6 +33,7 @@ LOCALES = {
     "hu": "hun_Latn",
     "uk": "ukr_Cyrl",
 }
+DEFAULT_LOCALES = tuple(locale for locale in LOCALES if locale != "en")
 MACHINE_NOTE = "UNREVIEWED MACHINE TRANSLATION"
 PRESERVED_DISC_KEYS = frozenset({
     "t06.0017",
@@ -463,8 +465,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--model", type=Path, required=True, help="existing local NLLB-compatible model directory")
-    common.add_argument("--locales", nargs="+", choices=LOCALES, default=list(LOCALES),
-                        help="output locales (default: all seven)")
+    common.add_argument("--locales", nargs="+", choices=LOCALES, default=list(DEFAULT_LOCALES),
+                        help="output locales (default: seven non-English release locales)")
     common.add_argument("--cache", type=Path, help="local JSON cache (default: OUT.mt-cache.json)")
     common.add_argument("--batch-size", type=positive_int, default=8)
     common.add_argument("--max-new-tokens", type=positive_int, default=256)

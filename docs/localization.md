@@ -191,14 +191,18 @@ automated checks are documented in [Testing](testing.md).
 
 After [setup](../README.md#build), start `.\port\macross-recomp.exe` from the
 repository root. The launcher offers Japanese disc text, installed
-localization mods, radio subtitles, Vulkan or software rendering, internal
-resolution, Vulkan output upscaling, fullscreen, and whether to show the
-launcher on later starts.
+localization mods, an independent project-authored English system-message
+overlay, radio subtitles, Vulkan or software rendering, internal resolution,
+Vulkan output upscaling, fullscreen, and whether to show the launcher on later
+starts.
 Keyboard, mouse, and controller navigation are implemented; controller
 behavior still needs broader validation. F11 toggles fullscreen in-game.
 
 - `.\port\macross-recomp.exe --play` skips the launcher.
 - `.\port\macross-recomp.exe --launcher` forces it to appear.
+- `.\port\macross-recomp.exe --export-strings
+  .\localization\_base\strings.csv` exports the disc string table headlessly;
+  export is intentionally command-line only.
 - `.\tools\run.ps1 -Renderer Vulkan -Scale 1 -Upscaler FSR1` starts the game
   directly and overrides saved rendering options through environment
   variables. Add `-Launcher` to show the launcher instead. Its `-Headless`
@@ -208,16 +212,17 @@ behavior still needs broader validation. F11 toggles fullscreen in-game.
 
 | Mod | Contents and limits |
 |---|---|
-| `en-system` | 47 project-authored English executable-system messages, including memory-card, installation, calibration, and dialog text. Missing strings and the story stay as on the disc. |
-| `en-fan` | A checked-in manifest that includes `en-system`. The player must supply `localization\en-fan\strings.csv` locally before it offers fan text. |
-| `multilingual-mt` | The release localization mod for Mexican Spanish, Brazilian Portuguese, Simplified Chinese, French, German, Hungarian, and Ukrainian. Its project-created `strings.csv` and runtime translation functions ship with the release. All seven generated columns are unreviewed machine drafts. |
+| `en-system` | 47 project-authored English executable-system messages, including memory-card, installation, calibration, and dialog text. The launcher can overlay these messages independently on any text language. |
+| `en-fan` | A checked-in manifest for a player-supplied `localization\en-fan\strings.csv`. English system messages are selected independently in the launcher. |
+| `multilingual-mt` | The release localization mod for English, Mexican Spanish, Brazilian Portuguese, Simplified Chinese, French, German, Hungarian, and Ukrainian. Its project-created `strings.csv` and runtime translation functions ship with the release. All eight generated columns are unreviewed machine drafts. |
 
 Included mods are loaded first; later nonempty rows in the selected mod win.
-Thus optional private-import rows can override `en-system`, while missing or
-empty rows fall back to an included value or the disc. Include cycles and
-missing included mods are errors. The project's 47 strings are not the
-external image patch's 52 executable edits, and neither count implies a
-complete translation.
+The independent `en-system` table loads after the selected text table when its
+launcher option is enabled, so its 47 project-authored rows take precedence
+without changing story text. Other include chains still use their declared
+order; include cycles and missing included mods are errors. The project's 47
+strings are not the external image patch's 52 executable edits, and neither
+count implies a complete translation.
 
 The external full story translation is machine-produced and has not been
 reviewed by a Japanese-speaking human. It is not vendored: its pinned revision
@@ -423,7 +428,7 @@ python .\tools\loc_art.py extract `
 
 The extraction writes reference PNGs, decompressed TIM2 sources, and
 `titles.tsv`. Transcribe each source title into its local `ja` column. The same
-offline model can draft the seven title columns:
+offline model can draft the eight release-language title columns:
 
 ```powershell
 python .\tools\loc_mt.py titles `
@@ -521,7 +526,7 @@ translation and optional override TSVs use an `id` column plus locale columns;
 nonempty override cells replace the machine draft for compact fixed regions.
 Manifest `clear` regions remove pixels shared with adjacent sprites before
 localized text is rendered.
-Render all seven overlays with:
+Render all eight release-language overlays with:
 
 ```powershell
 python .\tools\loc_art.py render-ui `

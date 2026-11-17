@@ -115,6 +115,7 @@ LOC_FONT_RECORD :: 8 + LOC_FONT_GLYPH
 
 Loc_Table :: struct {
 	path:        string,
+	lang:        string,
 	ascii_punct: bool,
 }
 
@@ -135,9 +136,9 @@ Loc :: struct {
 	region:    []u8,
 	table:     [STR_TABLES]u32,
 	count:     [STR_TABLES]u32,
-	// The original STR_Init and main, called by their wrappers.
-	str_init:  cpu.Func_Proc,
-	game_main: cpu.Func_Proc,
+	// The original string functions and main, called by their wrappers.
+	str_init, str_get, str_get_attr: cpu.Func_Proc,
+	game_main:                        cpu.Func_Proc,
 	font_pre_get, font_get: cpu.Func_Proc,
 	// --export-strings: where to write the base table; the run exits after.
 	export:    string,
@@ -495,19 +496,22 @@ loc_load :: proc(csv_path, lang: string, ascii_punct: bool) -> bool {
 	return true
 }
 
+loc_tables_load :: proc(tables: []Loc_Table) -> bool {
+	for table in tables {
+		if table.lang != "" && !loc_load(table.path, table.lang, table.ascii_punct) {return false}
+	}
+	return true
+}
+
 // Install the hooks once the generated functions are registered.
-loc_install :: proc(tables: []Loc_Table, font_paths: []string, lang: string, subtitles: bool, export: string) -> bool {
+loc_install :: proc(tables: []Loc_Table, font_paths: []string, subtitles: bool, export: string) -> bool {
 	context.allocator = core.long_allocator()
 	loc.subtitles = subtitles
 	loc.export = export
 	if len(font_paths) > 0 && export == "" {
 		if !loc_fonts_load(font_paths) {return false}
 	}
-	if lang != "" && export == "" {
-		for table in tables {
-			if !loc_load(table.path, lang, table.ascii_punct) {return false}
-		}
-	}
+	if export == "" && !loc_tables_load(tables) {return false}
 	if len(loc.text) == 0 && len(loc.exe) == 0 && len(loc.font_glyph) == 0 && !subtitles && export == "" {
 		return true
 	}
@@ -534,8 +538,12 @@ loc_install :: proc(tables: []Loc_Table, font_paths: []string, lang: string, sub
 		cpu.register(CRSFNT_GET, loc_font_get)
 	}
 	loc.str_init = cpu.lookup(STR_INIT)
+	loc.str_get = cpu.lookup(STR_GET)
+	loc.str_get_attr = cpu.lookup(STR_GET_ATTR)
 	loc.game_main = cpu.lookup(GAME_MAIN)
 	cpu.register(STR_INIT, loc_str_init)
+	cpu.register(STR_GET, loc_str_get)
+	cpu.register(STR_GET_ATTR, loc_str_get_attr)
 	cpu.register(GAME_MAIN, loc_main)
 	return true
 }
@@ -656,6 +664,31 @@ same_conversions :: proc(a, b: []u8) -> bool {
 loc_str_init :: proc() {
 	loc.str_init()
 	loc_rebuild_tables(loc.subtitles)
+}
+
+@(private = "file")
+loc_str_get :: proc() {
+	table := u32(cpu.state.r[4].d[0])
+	index := u32(cpu.state.r[5].d[0])
+	if entry := loc_entry(table, index); entry != 0 {
+		if table < STR_ID_TABLES {entry += STR_ID}
+		cpu.state.r[2].d[0] = u64(entry)
+		return
+	}
+	loc.str_get()
+}
+
+@(private = "file")
+loc_str_get_attr :: proc() {
+	table := u32(cpu.state.r[4].d[0])
+	index := u32(cpu.state.r[5].d[0])
+	if table < STR_ID_TABLES {
+		if entry := loc_entry(table, index); entry != 0 {
+			cpu.state.r[2].d[0] = u64(entry)
+			return
+		}
+	}
+	loc.str_get_attr()
 }
 
 // Build shadow tables from the original table pointers after STR_Init.

@@ -1,6 +1,5 @@
 key	value
 name	English (optional local fan translation)
 author	Supplied locally by the player
-description	Optional locally supplied translation with project-authored system messages.
+description	Optional locally supplied story translation. English system messages are selected independently in the launcher.
 ascii_punctuation	1
-include	en-system

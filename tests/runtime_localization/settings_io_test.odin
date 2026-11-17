@@ -21,7 +21,7 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 
 	names := [?]string{
 		"DATA", "SW", "SCALE", "UPSCALER", "IRX", "NATIVE", "LOC", "LANG", "SUBTITLES",
-		"FULLSCREEN", "LAUNCHER", "HEADLESS",
+		"SYSTEM_EN", "FULLSCREEN", "LAUNCHER", "HEADLESS",
 	}
 	old: [len(names)]string
 	present: [len(names)]bool
@@ -38,13 +38,13 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 	testing.expect(t, os.set_env(core.env_name("NATIVE"), "1") == nil)
 	global := "SW\t1\nSCALE\t5\nUPSCALER\tlinear\nIRX\t1\nNATIVE\t0\nLOC\tglobal\n"
 	repository := "SCALE\t1\nUPSCALER\tfsr1\nIRX\t1\nNATIVE\t0\nLOC\trepository\n"
-	player := "SW\t0\nIRX\t0\nLOC\tlocal\nUNKNOWN\tkeep\n"
+	player := "SW\t0\nIRX\t0\nLOC\tlocal\nSYSTEM_EN\t1\nUNKNOWN\tkeep\n"
 	if !testing.expect(t, os.write_entire_file(global_dir + "\\settings.tsv", transmute([]u8)global) == nil) {return}
 	if !testing.expect(t, os.write_entire_file(repo_dir + "\\settings.tsv", transmute([]u8)repository) == nil) {return}
 	if !testing.expect(t, os.write_entire_file(player_dir + "\\settings.tsv", transmute([]u8)player) == nil) {return}
 	l := port.Local{root = repo_dir, data = player_dir}
 	cfg := port.config_load(l)
-	testing.expect(t, cfg.loc == "local" && cfg.scale == 1 && !cfg.software)
+	testing.expect(t, cfg.loc == "local" && cfg.scale == 1 && !cfg.software && cfg.system_english)
 	testing.expect(t, port.config_apply(l, cfg))
 	testing.expect(t, core.env("SW") == "0")
 	testing.expect(t, core.env("SCALE") == "1")
@@ -63,6 +63,7 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 		testing.expect(t, strings.contains(string(saved), "IRX\t0\n"))
 		testing.expect(t, strings.contains(string(saved), "UNKNOWN\tkeep\n"))
 		testing.expect(t, strings.contains(string(saved), "LOC\tlocal\n"))
+		testing.expect(t, strings.contains(string(saved), "SYSTEM_EN\t1\n"))
 		testing.expect(t, strings.contains(string(saved), "FULLSCREEN\t1\n"))
 		testing.expect(t, !strings.contains(string(saved), "SCALE\t"))
 		testing.expect(t, !strings.contains(string(saved), "NATIVE\t"))
@@ -72,5 +73,5 @@ settings_apply_preserves_runtime_options :: proc(t: ^testing.T) {
 	after, read_err := os.read_entire_file(player_dir + "\\settings.tsv", context.temp_allocator)
 	testing.expect(t, read_err == nil && string(after) == string(saved))
 	compat := port.config_load(l, false)
-	testing.expect(t, compat.loc == "" && !compat.fullscreen)
+	testing.expect(t, compat.loc == "" && !compat.fullscreen && !compat.system_english)
 }

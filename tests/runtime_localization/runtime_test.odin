@@ -12,7 +12,7 @@ loc_test_mutex: sync.Mutex
 settings_layering_and_defaults :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
 	global := port.config_parse("SW\t1\nSCALE\t5\nUPSCALER\tlinear\nLOC\tglobal\n", context.temp_allocator)
-	repository := port.config_parse("SW\t0\nSCALE\t1\nUPSCALER\tfsr1\nLOC\trepository\n", context.temp_allocator)
+	repository := port.config_parse("SW\t0\nSCALE\t1\nUPSCALER\tfsr1\nLOC\trepository\nSYSTEM_EN\t1\n", context.temp_allocator)
 	local := port.config_parse("SCALE\t2\nLOC\tlocal\n", context.temp_allocator)
 	env := port.config_parse("LOC\t\n", context.temp_allocator)
 	c := port.config_resolve(local, repository, global, env, false)
@@ -20,6 +20,7 @@ settings_layering_and_defaults :: proc(t: ^testing.T) {
 	testing.expect(t, c.scale == 2 && c.source[.Scale] == .Local)
 	testing.expect(t, c.upscaler == .Fsr1 && c.source[.Upscaler] == .Repository)
 	testing.expect(t, c.loc == "" && c.source[.Loc] == .Environment)
+	testing.expect(t, c.system_english && c.source[.System_English] == .Repository)
 	testing.expect(t, c.launcher)
 
 	c = port.config_resolve({}, repository, global, {}, false)
@@ -27,7 +28,7 @@ settings_layering_and_defaults :: proc(t: ^testing.T) {
 	c = port.config_resolve({}, {}, global, {}, false)
 	testing.expect(t, c.scale == 5 && c.software && c.upscaler == .Linear)
 	c = port.config_resolve({}, {}, {}, {}, false)
-	testing.expect(t, c.scale == 1 && !c.software && c.upscaler == .Fsr1)
+	testing.expect(t, c.scale == 1 && !c.software && c.upscaler == .Fsr1 && !c.system_english)
 	c = port.config_resolve({}, {}, {}, {}, true)
 	testing.expect(t, c.scale == 1)
 
@@ -40,16 +41,56 @@ settings_layering_and_defaults :: proc(t: ^testing.T) {
 }
 
 @(test)
+launcher_render_presets_and_mouse_arrows :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	c := port.CONFIG_DEFAULT
+	testing.expect(t, port.render_preset(&c) == .Performance)
+
+	port.change_render_preset(&c, 1)
+	testing.expect(t, port.render_preset(&c) == .Balanced)
+	testing.expect(t, c.scale == 2 && c.upscaler == .Fsr1)
+	testing.expect(t, .Scale in c.dirty && .Upscaler in c.dirty)
+
+	port.change_render_preset(&c, 1)
+	testing.expect(t, port.render_preset(&c) == .Quality)
+	testing.expect(t, c.scale == 3 && c.upscaler == .Linear)
+
+	c.scale, c.upscaler = 8, .Linear
+	c.dirty = {}
+	testing.expect(t, port.render_preset(&c) == .Custom)
+	port.change_render_preset(&c, -1)
+	testing.expect(t, port.render_preset(&c) == .Quality)
+	testing.expect(t, .Scale in c.dirty && .Upscaler in c.dirty)
+
+	testing.expect(t, port.launcher_arrow_direction(port.LAUNCHER_LEFT_ARROW_X) == -1)
+	testing.expect(t, port.launcher_arrow_direction(port.LAUNCHER_RIGHT_ARROW_X) == 1)
+	middle := (port.LAUNCHER_LEFT_ARROW_X + port.LAUNCHER_RIGHT_ARROW_X) / 2
+	testing.expect(t, port.launcher_arrow_direction(middle) == 0)
+
+	system := port.Loc_Mod{id = port.SYSTEM_MOD_ID, name = "English system messages only"}
+	testing.expect(t, !port.launcher_text_mod(system))
+	multilingual := port.Loc_Mod{name = "Multilingual localization", languages = []string{"en", "fr"}}
+	testing.expect(t, port.launcher_text_label(multilingual, "en") == "[en] en")
+
+	legacy := port.CONFIG_DEFAULT
+	legacy.loc, legacy.lang = port.SYSTEM_MOD_ID, "en"
+	port.launcher_migrate_system_selection(&legacy)
+	testing.expect(t, legacy.loc == "" && legacy.lang == "" && legacy.system_english)
+	testing.expect(t, .Loc in legacy.dirty && .Lang in legacy.dirty && .System_English in legacy.dirty)
+}
+
+@(test)
 settings_parser_and_non_destructive_save :: proc(t: ^testing.T) {
 	context.allocator = context.temp_allocator
-	text := "SCALE\t1\nSCALE\t8\nUPSCALER\tlinear\nSW\t1\textra\nSW\t0\nIRX\t0\nNATIVE\t0\nUNKNOWN\tx\n"
+	text := "SCALE\t1\nSCALE\t8\nUPSCALER\tlinear\nSYSTEM_EN\t0\nSW\t1\textra\nSW\t0\nIRX\t0\nNATIVE\t0\nUNKNOWN\tx\n"
 	rows := port.config_parse(text, context.temp_allocator)
 	testing.expect(t, rows.value[.Scale] == "1")
 	testing.expect(t, rows.value[.Sw] == "0")
 	c := port.config_resolve(rows, {}, {}, {}, false)
 	c.scale = 4
 	c.upscaler = .Fsr1
-	c.dirty += {.Scale, .Upscaler}
+	c.system_english = true
+	c.dirty += {.Scale, .Upscaler, .System_English}
 	saved := port.config_serialize(text, c, context.temp_allocator)
 	testing.expect(t, strings.contains(saved, "IRX\t0\n"))
 	testing.expect(t, strings.contains(saved, "NATIVE\t0\n"))
@@ -59,6 +100,8 @@ settings_parser_and_non_destructive_save :: proc(t: ^testing.T) {
 	testing.expect(t, !strings.contains(saved, "SCALE\t8\n"))
 	testing.expect(t, strings.contains(saved, "SCALE\t4\n"))
 	testing.expect(t, strings.contains(saved, "UPSCALER\tfsr1\n"))
+	testing.expect(t, strings.contains(saved, "SYSTEM_EN\t1\n"))
+	testing.expect(t, !strings.contains(saved, "SYSTEM_EN\t0\n"))
 	testing.expect(t, !strings.contains(saved, "LOC\t"))
 }
 
@@ -187,12 +230,22 @@ project_system_table_loads_with_missing_key_fallback :: proc(t: ^testing.T) {
 	sync.mutex_lock(&loc_test_mutex)
 	defer sync.mutex_unlock(&loc_test_mutex)
 	defer port.loc_reset()
-	path :: "localization\\en-system\\strings.csv"
-	langs, ok := port.loc_languages(path, context.temp_allocator)
+	system_path :: "localization\\en-system\\strings.csv"
+	langs, ok := port.loc_languages(system_path, context.temp_allocator)
 	testing.expect(t, ok && len(langs) == 1 && langs[0] == "en")
-	testing.expect(t, port.loc_load(path, "en", true))
+	text_path :: "tests\\runtime_localization\\runtime_system_overlay_fixture.csv"
+	text := "key,es-MX\nt00.0000,Historia\nexe.003cab08,Aceptar\n"
+	if !testing.expect(t, os.write_entire_file(text_path, transmute([]u8)text) == nil) {return}
+	defer os.remove(text_path)
+	tables := [2]port.Loc_Table{
+		{path = text_path, lang = "es-MX", ascii_punct = true},
+		{path = system_path, lang = "en", ascii_punct = true},
+	}
+	testing.expect(t, port.loc_tables_load(tables[:]))
 	bytes, found := port.loc_translation(0x003c_ab08, true)
 	testing.expect(t, found && string(bytes) == "OK")
+	bytes, found = port.loc_translation(0, false)
+	testing.expect(t, found && string(bytes) == "Historia")
 	_, found = port.loc_translation(0x003c_79e0, true)
 	testing.expect(t, !found)
 }

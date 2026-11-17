@@ -34,6 +34,25 @@ run: struct {
 	export: string,
 }
 
+@(private = "file")
+selected_mods :: proc(root, text_mod: string, system_english: bool) -> []Loc_Mod {
+	out := make([dynamic]Loc_Mod)
+	add :: proc(out: ^[dynamic]Loc_Mod, mods: []Loc_Mod) {
+		for m in mods {
+			present := false
+			for existing in out^ {
+				if existing.id == m.id {present = true; break}
+			}
+			if !present {append(out, m)}
+		}
+	}
+	if text_mod != "" {add(&out, loc_mods(root, text_mod))}
+	if system_english && text_mod != SYSTEM_MOD_ID {
+		add(&out, loc_mods(root, SYSTEM_MOD_ID))
+	}
+	return out[:]
+}
+
 main :: proc() {
 	l := local_read()
 	force_launcher, force_play := false, false
@@ -76,11 +95,11 @@ main :: proc() {
 	mods: []Loc_Mod
 	if show_launcher {
 		mods = loc_mods(l.root)
-	} else if run.cfg.loc != "" && run.export == "" {
-		mods = loc_mods(l.root, run.cfg.loc)
+	} else if run.export == "" {
+		mods = selected_mods(l.root, run.cfg.loc, run.cfg.system_english)
 	}
 	if run.export == "" && show_launcher {
-		result := launcher_run(&run.cfg, l, mods)
+		result := launcher_run(&run.cfg, mods)
 		if !config_save(l, run.cfg) {os.exit(1)}
 		if result == .Quit {os.exit(0)}
 		// In particular, an environment override still wins over an edit.
@@ -107,8 +126,9 @@ main :: proc() {
 				}
 			}
 			for m in chain {
-				if m.csv != "" && loc_has_language(m, run.cfg.lang) {
-					append(&run.tables, Loc_Table{m.csv, m.ascii_punct})
+				if m.csv != "" && loc_has_language(m, run.cfg.lang) &&
+				   !(m.id == SYSTEM_MOD_ID && run.cfg.system_english) {
+					append(&run.tables, Loc_Table{path = m.csv, lang = run.cfg.lang, ascii_punct = m.ascii_punct})
 				}
 				append(&run.dirs, m.dir)
 				if run.cfg.lang == "" {continue}
@@ -142,6 +162,27 @@ main :: proc() {
 		}
 		if !found {fmt.eprintfln("loc: no localization mod '%s' in %s; using the disc's text", run.cfg.loc, filepath.join({l.root, "localization"}))}
 	}
+	if run.cfg.system_english && run.export == "" && run.cfg.loc != SYSTEM_MOD_ID {
+		found := false
+		for m in mods {
+			if m.id != SYSTEM_MOD_ID {continue}
+			found = true
+			if m.problem != "" {
+				fmt.eprintfln("loc: mod %s is malformed: %s", m.id, m.problem)
+				os.exit(1)
+			}
+			if m.csv == "" || !loc_has_language(m, "en") {
+				fmt.eprintln("loc: en-system has no English string table")
+				os.exit(1)
+			}
+			append(&run.tables, Loc_Table{path = m.csv, lang = "en", ascii_punct = m.ascii_punct})
+			break
+		}
+		if !found {
+			fmt.eprintln("loc: English system messages are enabled, but localization/en-system is not installed")
+			os.exit(1)
+		}
+	}
 	display_init(run.cfg.fullscreen)
 	run.image = l.image
 
@@ -164,7 +205,7 @@ main :: proc() {
 // Before the window opens and before the game reads the disc: the mods'
 // replacement files.
 setup :: proc() -> bool {
-	if len(run.dirs) > 0 || run.cfg.subtitles || run.export != "" {
+	if len(run.tables) > 0 || len(run.dirs) > 0 || run.cfg.subtitles || run.export != "" {
 		if !loc_verify_revision() {return false}
 	}
 	if run.export == "" && !overlay_install(run.image, run.dirs[:]) {return false}
@@ -175,7 +216,6 @@ setup :: proc() -> bool {
 // interpreter, then the port's replacements of game functions.
 hooks :: proc() -> bool {
 	rec.register_all()
-	lang := run.mod.id != "" ? run.cfg.lang : ""
 	subtitles := run.cfg.subtitles && run.export == ""
-	return loc_install(run.tables[:], run.fonts[:], lang, subtitles, run.export)
+	return loc_install(run.tables[:], run.fonts[:], subtitles, run.export)
 }
