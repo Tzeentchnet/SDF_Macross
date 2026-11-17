@@ -8,3 +8,5 @@
 0006-continuous-spu-block-audio.patch
 0007-macross-main-menu-software-gs.patch
 0008-precise-vulkan-texture-pages.patch
+0009-batch-vulkan-video-tiles.patch
+0010-fix-vulkan-fsr-colors.patch
