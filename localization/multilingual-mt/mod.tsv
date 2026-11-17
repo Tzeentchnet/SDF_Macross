@@ -1,0 +1,13 @@
+key	value
+name	Multilingual localization
+author	SDF_Macross contributors
+description	Project-created language tables with unreviewed machine-translation drafts, runtime fonts, and localized UI support.
+ascii_punctuation	1
+language.en	English
+language.es-MX	Spanish (Mexico)
+language.pt-BR	Portuguese (Brazil)
+language.zh-Hans	Chinese (Simplified)
+language.fr	French
+language.de	German
+language.hu	Hungarian
+language.uk	Ukrainian

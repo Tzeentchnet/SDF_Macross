@@ -268,9 +268,46 @@ Loc_Mod :: struct {
 	id, dir, name, author, description: string,
 	csv:                                string,
 	languages:                          []string,
+	language_names:                     map[string]string,
 	ascii_punct:                        bool,
 	includes:                           []string,
 	problem:                            string,
+}
+
+// Language columns double as names below languages/<tag>, so use portable
+// BCP-47-style identifiers rather than arbitrary spreadsheet headings.
+loc_language_id :: proc(lang: string) -> bool {
+	if len(lang) == 0 || len(lang) > 35 || lang[0] == '-' || lang[len(lang) - 1] == '-' {return false}
+	hyphen := false
+	for c in lang {
+		if c == '-' {
+			if hyphen {return false}
+			hyphen = true
+			continue
+		}
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {return false}
+		hyphen = false
+	}
+	return true
+}
+
+loc_has_language :: proc(m: Loc_Mod, lang: string) -> bool {
+	for available in m.languages {
+		if strings.equal_fold(available, lang) {return true}
+	}
+	return false
+}
+
+loc_language_name :: proc(m: Loc_Mod, lang: string) -> string {
+	for code, name in m.language_names {
+		if strings.equal_fold(code, lang) {return name}
+	}
+	return lang
+}
+
+loc_language_dir :: proc(m: Loc_Mod, lang: string, allocator := context.allocator) -> string {
+	path, _ := filepath.join({m.dir, "languages", lang}, allocator)
+	return path
 }
 
 // Mod `m` and the mods it includes, included ones first, each once: the
@@ -399,13 +436,27 @@ loc_mods :: proc(root: string, selected := "", allocator := context.allocator) -
 					continue
 				}
 				if k == "key" && v == "value" {continue}
+				if strings.has_prefix(k, "language.") {
+					lang := k[len("language."):]
+					key := strings.to_lower(k, context.temp_allocator)
+					if !loc_language_id(lang) || strings.trim_space(v) == "" {
+						fail(&m, fmt.tprintf("invalid language label %q", k))
+					} else if key in seen {
+						fail(&m, fmt.tprintf("duplicate manifest key %q", k))
+					} else {
+						seen[key] = true
+						m.language_names[strings.clone(lang)] = strings.clone(v)
+					}
+					continue
+				}
 				switch k {
 				case "name", "author", "description", "ascii_punctuation", "include":
-					if k in seen {
+					key := strings.to_lower(k, context.temp_allocator)
+					if key in seen {
 						fail(&m, fmt.tprintf("duplicate manifest key %q", k))
 						continue
 					}
-					seen[k] = true
+					seen[key] = true
 				case:
 					continue
 				}
@@ -456,6 +507,11 @@ loc_mods :: proc(root: string, selected := "", allocator := context.allocator) -
 		}
 		if len(langs) == 0 && (has_files || m.problem != "") {append(&langs, "")}
 		m.languages = langs[:]
+		for lang in m.language_names {
+			if !loc_has_language(m, lang) {
+				fail(&m, fmt.tprintf("language label %q has no matching strings.csv column", lang))
+			}
+		}
 		if selected != "" {append(&pending, ..m.includes)}
 		if len(m.languages) > 0 {append(&out, m)}
 	}

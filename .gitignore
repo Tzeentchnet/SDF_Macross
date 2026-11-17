@@ -5,6 +5,12 @@
 /local.tsv
 /localization/_base/strings.csv
 /localization/en-fan/strings.csv
+/localization/multilingual-mt/strings.csv
+/localization/multilingual-mt/*.mt-cache.json
+/localization/multilingual-mt/titles*.tsv
+/localization/multilingual-mt/languages/
+/localization/multilingual-mt/reference/
+/localization/multilingual-mt/tim2/
 /port/src/rec/
 /port/*.dll
 /port/*.exe

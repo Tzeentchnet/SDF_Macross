@@ -92,6 +92,12 @@ include_order_missing_dependencies_and_cycles :: proc(t: ^testing.T) {
 
 @(test)
 keys_subtitles_and_reserved_regions :: proc(t: ^testing.T) {
+	for lang in ([]string{"es-MX", "pt-BR", "zh-Hans", "fr", "de", "hu", "uk"}) {
+		testing.expect(t, port.loc_language_id(lang), lang)
+	}
+	for lang in ([]string{"", "-fr", "fr-", "zh--Hans", "pt_BR", "français", "a/b"}) {
+		testing.expect(t, !port.loc_language_id(lang), lang)
+	}
 	key, exe, ok := port.loc_key("t01.0042")
 	testing.expect(t, ok && !exe && key == 0x0001_002a)
 	key, exe, ok = port.loc_key("exe.003cab08")

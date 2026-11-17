@@ -27,6 +27,7 @@ import "core:encoding/csv"
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 import "ps:core"
@@ -39,6 +40,8 @@ STR_INIT :: 0x001a1510
 STR_GET :: 0x001a1640
 STR_GET_ATTR :: 0x001a1600
 GAME_MAIN :: 0x002f33c0
+CRSFNT_PRE_GET :: 0x00305f10
+CRSFNT_GET :: 0x00305fd0
 // The 11 table pointers STR_Init fills.
 STR_DATA :: 0x004292a0
 // str_dummy_attr ($gp - 0x7c28): what STR_GetDcFontStringAttr returns for a
@@ -105,6 +108,11 @@ LOC_REGION :: 4 << 20
 // Reserved CSV columns; every other column is a language.
 LOC_RESERVED := [?]string{"key", "offset", "speaker", "caption", "voice", "shared", "max_bytes", "notes", "context"}
 
+LOC_FONT_MAGIC :: "MCFNT1\x00\x00"
+LOC_FONT_HEADER :: 12
+LOC_FONT_GLYPH :: 32 * 32 / 2
+LOC_FONT_RECORD :: 8 + LOC_FONT_GLYPH
+
 Loc_Table :: struct {
 	path:        string,
 	ascii_punct: bool,
@@ -115,6 +123,10 @@ Loc :: struct {
 	text:      map[u32][]u8,
 	// A replacement for an executable string, by address.
 	exe:       map[u32][]u8,
+	// Unicode characters supplied by language font packs, and their 32x32
+	// 4-bit transfer tiles keyed by otherwise unused one- or two-byte codes.
+	font_encode: map[rune]u16,
+	font_glyph:  map[u16][]u8,
 	subtitles: bool,
 	// The guest address of an entry's buffer once built (0: the entry is
 	// served from BOOTDAT unchanged). Cleared when STR_Init runs again.
@@ -126,6 +138,7 @@ Loc :: struct {
 	// The original STR_Init and main, called by their wrappers.
 	str_init:  cpu.Func_Proc,
 	game_main: cpu.Func_Proc,
+	font_pre_get, font_get: cpu.Func_Proc,
 	// --export-strings: where to write the base table; the run exits after.
 	export:    string,
 }
@@ -146,10 +159,117 @@ loc_reset :: proc() {
 	}
 	for _, bytes in loc.text {delete(bytes, core.long_allocator())}
 	for _, bytes in loc.exe {delete(bytes, core.long_allocator())}
+	for _, bytes in loc.font_glyph {delete(bytes, core.long_allocator())}
 	delete(loc.text)
 	delete(loc.exe)
+	delete(loc.font_encode)
+	delete(loc.font_glyph)
 	delete(loc.built)
 	loc = {}
+}
+
+loc_font_code :: proc(code: u16) -> bool {
+	if code == 0x80 || code == 0xa0 || code >= 0xa2 && code <= 0xdf ||
+		code >= 0xfd && code <= 0xff {
+		return true
+	}
+	lead, trail := u8(code >> 8), u8(code)
+	valid_lead := lead == 0x85 || lead == 0x86 || lead == 0xeb ||
+		lead == 0xec || lead == 0xef || lead >= 0xf0 && lead <= 0xf9
+	valid_trail := trail >= 0x40 && trail <= 0x7e || trail >= 0x80 && trail <= 0xfc
+	return valid_lead && valid_trail
+}
+
+@(private = "file")
+loc_u16 :: proc(b: []u8, at: int) -> u16 {
+	return u16(b[at]) | u16(b[at + 1]) << 8
+}
+
+@(private = "file")
+loc_u32 :: proc(b: []u8, at: int) -> u32 {
+	return u32(b[at]) | u32(b[at + 1]) << 8 | u32(b[at + 2]) << 16 | u32(b[at + 3]) << 24
+}
+
+// Load all selected language font packs as one transaction. Duplicate
+// mappings are accepted only when their code and glyph bytes are identical.
+loc_fonts_load :: proc(paths: []string) -> bool {
+	context.allocator = core.long_allocator()
+	encode: map[rune]u16
+	decode: map[u16]rune
+	glyphs: map[u16][]u8
+	success := false
+	defer {
+		if !success {
+			for _, glyph in glyphs {delete(glyph)}
+		}
+		delete(encode)
+		delete(decode)
+		delete(glyphs)
+	}
+	for path in paths {
+		data, err := os.read_entire_file(path, context.temp_allocator)
+		if err != nil {
+			fmt.eprintfln("loc: cannot read font pack %s: %v", path, err)
+			return false
+		}
+		if len(data) < LOC_FONT_HEADER || string(data[:8]) != LOC_FONT_MAGIC {
+			fmt.eprintfln("loc: %s is not a version-1 runtime font pack", path)
+			return false
+		}
+		count := loc_u32(data, 8)
+		if count > 4096 || u64(LOC_FONT_HEADER) + u64(count) * LOC_FONT_RECORD != u64(len(data)) {
+			fmt.eprintfln("loc: %s has an invalid font record count or size", path)
+			return false
+		}
+		for i in u32(0) ..< count {
+			at := LOC_FONT_HEADER + int(i) * LOC_FONT_RECORD
+			cp, code, flags := loc_u32(data, at), loc_u16(data, at + 4), loc_u16(data, at + 6)
+			if cp > 0x10ffff || cp >= 0xd800 && cp <= 0xdfff || flags != 0 || !loc_font_code(code) {
+				fmt.eprintfln("loc: %s font record %d has an invalid character, code or flags", path, i)
+				return false
+			}
+			r := rune(cp)
+			record_glyph := data[at + 8:][:LOC_FONT_GLYPH]
+			if old_code, found := encode[r]; found {
+				old_glyph := glyphs[old_code]
+				if old_code != code || !slice.equal(old_glyph, record_glyph) {
+					fmt.eprintfln("loc: %s maps U+%04X differently from another font pack", path, cp)
+					return false
+				}
+				continue
+			}
+			if old_r, found := decode[code]; found {
+				fmt.eprintfln("loc: %s reuses font code %04x for U+%04X and U+%04X", path, code, old_r, cp)
+				return false
+			}
+			glyph := make([]u8, LOC_FONT_GLYPH)
+			copy(glyph, record_glyph)
+			encode[r], decode[code], glyphs[code] = code, r, glyph
+		}
+	}
+	if loc.font_encode == nil {loc.font_encode = make(map[rune]u16)}
+	if loc.font_glyph == nil {loc.font_glyph = make(map[u16][]u8)}
+	for r, code in encode {loc.font_encode[r] = code}
+	for code, glyph in glyphs {
+		loc.font_glyph[code] = glyph
+		glyphs[code] = nil
+	}
+	success = true
+	if len(loc.font_glyph) > 0 {
+		fmt.eprintfln("loc: %d runtime glyphs from %d font pack(s)", len(loc.font_glyph), len(paths))
+	}
+	return true
+}
+
+loc_encode :: proc(s: string, ascii_punct: bool, allocator := context.allocator) -> ([]u8, int) {
+	return sjis_encode_mapped(s, ascii_punct, loc.font_encode, allocator)
+}
+
+loc_font_copy :: proc(code: u16, dst: u32) -> bool {
+	glyph, found := loc.font_glyph[code]
+	if !found {return false}
+	copy(mem.ram_slice(dst, LOC_FONT_GLYPH), glyph)
+	return true
 }
 
 // The addresses and generated functions below are specific to this exact
@@ -216,6 +336,10 @@ loc_languages :: proc(csv_path: string, allocator := context.allocator) -> ([]st
 				}
 				continue cols
 			}
+		}
+		if !loc_language_id(name) {
+			fmt.eprintfln("loc: invalid language column %q in %s", name, csv_path)
+			return nil, false
 		}
 		append(&out, strings.clone(name, allocator))
 	}
@@ -348,7 +472,7 @@ loc_load :: proc(csv_path, lang: string, ascii_punct: bool) -> bool {
 			fmt.eprintfln("loc: %s: %q contains a NUL character", csv_path, rec[key_col])
 			return false
 		}
-		bytes, miss := sjis_encode(loc_cell(rec[lang_col]), ascii_punct)
+		bytes, miss := loc_encode(loc_cell(rec[lang_col]), ascii_punct)
 		missing += miss
 		if exe {
 			staged_exe[key] = bytes
@@ -367,21 +491,24 @@ loc_load :: proc(csv_path, lang: string, ascii_punct: bool) -> bool {
 	}
 	success = true
 	fmt.eprintfln("loc: %d strings from %s (%s)%s", rows, csv_path, lang,
-		missing > 0 ? fmt.tprintf(", %d characters with no Shift-JIS form shown as '?'", missing) : "")
+		missing > 0 ? fmt.tprintf(", %d characters with no game-font mapping shown as '?'", missing) : "")
 	return true
 }
 
 // Install the hooks once the generated functions are registered.
-loc_install :: proc(tables: []Loc_Table, lang: string, subtitles: bool, export: string) -> bool {
+loc_install :: proc(tables: []Loc_Table, font_paths: []string, lang: string, subtitles: bool, export: string) -> bool {
 	context.allocator = core.long_allocator()
 	loc.subtitles = subtitles
 	loc.export = export
+	if len(font_paths) > 0 && export == "" {
+		if !loc_fonts_load(font_paths) {return false}
+	}
 	if lang != "" && export == "" {
 		for table in tables {
 			if !loc_load(table.path, lang, table.ascii_punct) {return false}
 		}
 	}
-	if len(loc.text) == 0 && len(loc.exe) == 0 && !subtitles && export == "" {
+	if len(loc.text) == 0 && len(loc.exe) == 0 && len(loc.font_glyph) == 0 && !subtitles && export == "" {
 		return true
 	}
 	when core.FLAT {
@@ -394,11 +521,47 @@ loc_install :: proc(tables: []Loc_Table, lang: string, subtitles: bool, export: 
 			return false
 		}
 	}
+	if len(loc.font_glyph) > 0 {
+		for addr in ([?]u32{CRSFNT_PRE_GET, CRSFNT_GET}) {
+			if cpu.lookup(addr) == nil {
+				fmt.eprintfln("loc: required runtime-font hook address %08x is not recompiled", addr)
+				return false
+			}
+		}
+		loc.font_pre_get = cpu.lookup(CRSFNT_PRE_GET)
+		loc.font_get = cpu.lookup(CRSFNT_GET)
+		cpu.register(CRSFNT_PRE_GET, loc_font_pre_get)
+		cpu.register(CRSFNT_GET, loc_font_get)
+	}
 	loc.str_init = cpu.lookup(STR_INIT)
 	loc.game_main = cpu.lookup(GAME_MAIN)
 	cpu.register(STR_INIT, loc_str_init)
 	cpu.register(GAME_MAIN, loc_main)
 	return true
+}
+
+@(private = "file")
+loc_font_pre_get :: proc() {
+	code := u16(cpu.state.r[5].d[0])
+	if code in loc.font_glyph {return}
+	loc.font_pre_get()
+}
+
+@(private = "file")
+loc_font_get :: proc() {
+	code := u16(cpu.state.r[5].d[0])
+	_, found := loc.font_glyph[code]
+	if !found {
+		loc.font_get()
+		return
+	}
+	size := u32(cpu.state.r[7].d[0])
+	if size != 32 {
+		cpu.fatal("loc: runtime glyph %04x requested at unsupported size %d", code, size)
+	}
+	dst := u32(cpu.state.r[6].d[0])
+	assert(loc_font_copy(code, dst))
+	cpu.state.r[2].d[0] = 0
 }
 
 // main(): the executable's strings are in RAM and nothing has shown yet.

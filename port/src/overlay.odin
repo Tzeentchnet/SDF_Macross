@@ -1,7 +1,8 @@
-// File overrides: a localization mod's files/<CVM>/<FILE> replace files
-// inside the disc's CVM containers as the game reads them, without writing
-// a new disc image. Used for art that holds Japanese text (title cards,
-// menus: TIM2 textures inside JPN.CVM's .CMP files), and for audio.
+// File overrides: a localization mod's files/<FILE> replace same-size files
+// at the disc root, while files/<CVM>/<FILE> replace files inside the disc's
+// CVM containers as the game reads them, without writing a new disc image.
+// Used for art that holds Japanese text (title cards, menus: TIM2 textures
+// inside JPN.CVM's .CMP files), and for audio.
 //
 // The runtime calls overlay_read (disc.read_hook, a framework patch) after
 // every read of the image's sectors. The overlay serves:
@@ -249,7 +250,8 @@ patch_record :: proc(record: i64, lba, size: u32) -> bool {
 }
 
 // The replacement files of a mod chain: CVM name -> file name -> host path.
-// Later mods override earlier ones.
+// An empty CVM name holds same-size files at the outer ISO root. Later mods
+// override earlier ones.
 @(private = "file")
 overlay_files :: proc(mod_dirs: []string) -> (map[string]map[string]string, bool) {
 	context.allocator = context.temp_allocator
@@ -274,8 +276,17 @@ overlay_files :: proc(mod_dirs: []string) -> (map[string]map[string]string, bool
 		seen: map[string]bool
 		for c in cvms {
 			if !os.is_dir(c.fullpath) {
-				fmt.eprintln("overlay: expected a container directory:", c.fullpath)
-				return nil, false
+				name := strings.to_upper(c.name)
+				key := fmt.tprintf("/%s", name)
+				if key in seen {
+					fmt.eprintln("overlay: duplicate case-insensitive replacement:", key)
+					return nil, false
+				}
+				seen[key] = true
+				if "" not_in out {out[""] = {}}
+				replacements := &out[""]
+				replacements[name] = strings.clone(c.fullpath)
+				continue
 			}
 			cvm := strings.to_upper(c.name)
 			inner, ierr := core.read_dir(c.fullpath, context.temp_allocator)
@@ -442,10 +453,52 @@ overlay_install :: proc(image: string, mod_dirs: []string) -> (success: bool) {
 		fmt.eprintln("overlay: cannot read the outer ISO directory")
 		return false
 	}
-	cvm_names := make([dynamic]string, context.temp_allocator)
-	for name in files {append(&cvm_names, name)}
-	slice.sort(cvm_names[:])
 	replaced := 0
+	if wanted, has_root := files[""]; has_root {
+		names := make([dynamic]string, context.temp_allocator)
+		for name in wanted {append(&names, name)}
+		slice.sort(names[:])
+		for name in names {
+			path := wanted[name]
+			e, present, only := find_entry(outer[:], name)
+			if !present || !only || e.dir || e.lba == 0 || e.size == 0 ||
+				overlaps_metadata(e.lba, sectors_for(e.size), outer_volume) {
+				fmt.eprintfln("overlay: files/%s: missing, ambiguous or unsafe root file", name)
+				return false
+			}
+			for x in outer_all {
+				if x.record != e.record && overlay_spans_overlap(
+					u64(e.lba), u64(sectors_for(e.size)),
+					u64(x.lba), u64(sectors_for(x.size)),
+				) {
+					fmt.eprintfln("overlay: root file %s overlaps %s", name, x.name)
+					return false
+				}
+			}
+			rf, ferr := os.open(path)
+			if ferr != nil {
+				fmt.eprintln("overlay: cannot open", path, ferr)
+				return false
+			}
+			file_size, size_error := os.file_size(rf)
+			if size_error != nil || file_size != i64(e.size) {
+				fmt.eprintfln(
+					"overlay: root replacement %s must match the original size %d (got %d; %v)",
+					path, e.size, file_size, size_error,
+				)
+				os.close(rf)
+				return false
+			}
+			append(&ov.regions, Region{
+				e.lba, sectors_for(e.size), rf, file_size, strings.clone(path),
+			})
+			replaced += 1
+			fmt.eprintfln("overlay: %s <- %s (%d bytes)", name, path, file_size)
+		}
+	}
+	cvm_names := make([dynamic]string, context.temp_allocator)
+	for name in files {if name != "" {append(&cvm_names, name)}}
+	slice.sort(cvm_names[:])
 	for cvm_name in cvm_names {
 		wanted := files[cvm_name]
 		cvm, found, unique := find_entry(outer[:], cvm_name)

@@ -1,0 +1,15 @@
+diff --git a/cricmp_enc.c b/cricmp_enc.c
+index 1021f73..39cf12d 100644
+--- a/cricmp_enc.c
++++ b/cricmp_enc.c
+@@ -18,7 +18,7 @@ u8* CMP_write_in;
+ #define CAST_PTR(type,data,offset) *((type*)(data+offset))
+-
++
+ #define MAX_COPY_LEN (0xF+2)
+-#define MAX_REPE_LEN (0xFFFF+3)
++#define MAX_REPE_LEN (0xFFF+3)
+ #define MAX_OFFSET (0xFFF)
+-
++
+ #pragma pack(push, 1)

@@ -65,6 +65,42 @@ def try_parse_mrg(data: bytes) -> MrgArchive | None:
         return None
 
 
+def member_at(data: bytes, path: tuple[int, ...] | list[int]) -> bytes:
+    """Return a nested member selected by zero-based MRG indices."""
+    current = data
+    for depth, index in enumerate(path):
+        archive = parse_mrg(current)
+        if index < 0 or index >= archive.count:
+            raise MrgFormatError(
+                f"member index {index} at path depth {depth} is outside 0..{archive.count - 1}"
+            )
+        current = archive.members[index].data
+    return current
+
+
+def replace_member(
+    data: bytes,
+    path: tuple[int, ...] | list[int],
+    replacement: bytes,
+) -> bytes:
+    """Replace a same-size nested member without changing any archive offsets."""
+    if not path:
+        if len(replacement) != len(data):
+            raise MrgFormatError(
+                f"replacement size {len(replacement)} does not match member size {len(data)}"
+            )
+        return replacement
+    archive = parse_mrg(data)
+    index = path[0]
+    if index < 0 or index >= archive.count:
+        raise MrgFormatError(f"member index {index} is outside 0..{archive.count - 1}")
+    member = archive.members[index]
+    nested = replace_member(member.data, path[1:], replacement)
+    output = bytearray(data)
+    output[member.offset:member.offset + member.size] = nested
+    return bytes(output)
+
+
 def printable_prefix(data: bytes, limit: int = 80) -> str:
     result = []
     for value in data[:limit]:

@@ -28,6 +28,7 @@ run: struct {
 	cfg:    Config,
 	mod:    Loc_Mod,
 	tables: [dynamic]Loc_Table,
+	fonts:  [dynamic]string,
 	dirs:   [dynamic]string,
 	image:  string,
 	export: string,
@@ -99,17 +100,44 @@ main :: proc() {
 			}
 			if run.cfg.lang != "" {
 				available := false
-				for lang in run.mod.languages {
-					if strings.equal_fold(lang, run.cfg.lang) {available = true; break}
-				}
+				available = loc_has_language(run.mod, run.cfg.lang)
 				if !available {
 					fmt.eprintfln("loc: mod %s has no language column %q", run.mod.id, run.cfg.lang)
 					os.exit(1)
 				}
 			}
 			for m in chain {
-				if m.csv != "" {append(&run.tables, Loc_Table{m.csv, m.ascii_punct})}
+				if m.csv != "" && loc_has_language(m, run.cfg.lang) {
+					append(&run.tables, Loc_Table{m.csv, m.ascii_punct})
+				}
 				append(&run.dirs, m.dir)
+				if run.cfg.lang == "" {continue}
+				lang_dir := loc_language_dir(m, run.cfg.lang, context.temp_allocator)
+				info, err := os.stat(lang_dir, context.temp_allocator)
+				if err != nil && err != .Not_Exist {
+					fmt.eprintfln("loc: cannot inspect %s: %v", lang_dir, err)
+					os.exit(1)
+				}
+				if err == nil {
+					if info.type != .Directory {
+						fmt.eprintln("loc: language assets path is not a directory:", lang_dir)
+						os.exit(1)
+					}
+					append(&run.dirs, strings.clone(lang_dir))
+					font, _ := filepath.join({lang_dir, "font.bin"}, context.temp_allocator)
+					font_info, font_err := os.stat(font, context.temp_allocator)
+					if font_err != nil && font_err != .Not_Exist {
+						fmt.eprintfln("loc: cannot inspect %s: %v", font, font_err)
+						os.exit(1)
+					}
+					if font_err == nil {
+						if font_info.type != .Regular {
+							fmt.eprintln("loc: runtime font pack is not a regular file:", font)
+							os.exit(1)
+						}
+						append(&run.fonts, strings.clone(font))
+					}
+				}
 			}
 		}
 		if !found {fmt.eprintfln("loc: no localization mod '%s' in %s; using the disc's text", run.cfg.loc, filepath.join({l.root, "localization"}))}
@@ -149,5 +177,5 @@ hooks :: proc() -> bool {
 	rec.register_all()
 	lang := run.mod.id != "" ? run.cfg.lang : ""
 	subtitles := run.cfg.subtitles && run.export == ""
-	return loc_install(run.tables[:], lang, subtitles, run.export)
+	return loc_install(run.tables[:], run.fonts[:], lang, subtitles, run.export)
 }

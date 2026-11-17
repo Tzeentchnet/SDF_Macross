@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "source": "CRSDAT.MRG",
+      "output": "CRSDAT.MRG",
+      "compression": "none",
+      "regions": [
+        {"path": [0, 0, 3], "id": "memory_card", "box": [69, 41, 143, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [212, 41, 90, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [0, 118, 70, 23], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "free_space", "box": [110, 115, 74, 25], "background": 231, "foreground": 246, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [332, 94, 77, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [0, 143, 102, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "box": [102, 143, 18, 24], "clear": 78},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [120, 143, 85, 24], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7}
+      ]
+    },
+    {
+      "source": "CRSDAT.MRG",
+      "output": "CRSDAT.MRG",
+      "container": "",
+      "compression": "none",
+      "regions": [
+        {"path": [0, 0, 3], "id": "memory_card", "box": [69, 41, 143, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [212, 41, 90, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [0, 118, 70, 23], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "free_space", "box": [110, 115, 74, 25], "background": 231, "foreground": 246, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [332, 94, 77, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [0, 143, 102, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "box": [102, 143, 18, 24], "clear": 78},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [120, 143, 85, 24], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7}
+      ]
+    },
+    {
+      "source": "CRSDATAT.MRG",
+      "output": "CRSDATAT.MRG",
+      "compression": "none",
+      "regions": [
+        {"path": [0, 0, 3], "id": "memory_card", "box": [69, 41, 143, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [212, 41, 90, 27], "background": 66, "foreground": 253, "max_size": 20, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [0, 118, 70, 23], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "free_space", "box": [110, 115, 74, 25], "background": 231, "foreground": 246, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "card_slot", "box": [332, 94, 77, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [0, 143, 102, 24], "background": 78, "foreground": 253, "max_size": 17, "min_size": 7},
+        {"path": [0, 0, 3], "box": [102, 143, 18, 24], "clear": 78},
+        {"path": [0, 0, 3], "id": "memory_card", "box": [120, 143, 85, 24], "background": 110, "foreground": 187, "max_size": 17, "min_size": 7}
+      ]
+    },
+    {
+      "source": "MENU_AUTH.CMP.bin",
+      "output": "MENU_AUTH.CMP",
+      "compression": "cricmp",
+      "regions": [
+        {"path": [2, 15], "id": "love_flows", "box": [58, 0, 150, 34], "background": 1, "foreground": 15, "max_size": 25, "min_size": 8},
+        {"path": [2, 15], "id": "remember_love", "box": [0, 37, 256, 36], "background": 1, "foreground": 15, "max_size": 25, "min_size": 8},
+        {"path": [2, 15], "id": "prometheus_wings", "box": [14, 75, 228, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 15], "id": "armd_wings", "box": [42, 108, 181, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 15], "id": "player_data", "box": [0, 141, 238, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 15], "id": "free_battle", "box": [0, 175, 238, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 15], "id": "tutorial", "box": [0, 209, 174, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+
+        {"path": [2, 16], "id": "options", "box": [0, 0, 153, 30], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 16], "id": "stories", "box": [0, 34, 153, 30], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 16], "id": "main_menu", "box": [0, 68, 225, 30], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+        {"path": [2, 16], "id": "stories", "box": [20, 98, 205, 29], "background": 1, "foreground": 15, "max_size": 22, "min_size": 8},
+
+        {"path": [2, 18], "id": "transformation", "box": [103, 0, 266, 29], "background": 1, "foreground": 15, "max_size": 24, "min_size": 8},
+        {"path": [2, 18], "id": "love_flows", "box": [370, 0, 134, 29], "background": 1, "foreground": 15, "max_size": 24, "min_size": 8},
+        {"path": [2, 18], "id": "remember_love", "box": [0, 65, 214, 33], "background": 1, "foreground": 15, "max_size": 25, "min_size": 7},
+        {"path": [2, 18], "id": "space_fold", "box": [215, 65, 208, 33], "background": 1, "foreground": 15, "max_size": 25, "min_size": 7},
+        {"path": [2, 18], "id": "daedalus_attack", "box": [0, 98, 207, 32], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "booby_trap", "box": [207, 98, 221, 32], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "invasion", "box": [428, 98, 84, 32], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "blind_game", "box": [0, 130, 253, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "great_escape", "box": [253, 130, 120, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "burst_point", "box": [0, 163, 187, 34], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "bye_mars", "box": [187, 163, 168, 34], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "pine_salad", "box": [355, 163, 150, 34], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "blue_wind", "box": [0, 197, 226, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "drop_out", "box": [226, 197, 150, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "miss_macross", "box": [376, 197, 101, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 7},
+        {"path": [2, 18], "id": "transformation", "box": [0, 230, 94, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "giant", "box": [94, 230, 94, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "enemy_search", "box": [188, 230, 94, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "enemy_ship", "box": [282, 230, 94, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "war_god", "box": [376, 230, 94, 33], "background": 1, "foreground": 15, "max_size": 24, "min_size": 6},
+        {"path": [2, 18], "id": "ruins", "box": [0, 263, 98, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 6},
+        {"path": [2, 18], "id": "select_stage", "box": [99, 263, 321, 31], "background": 1, "foreground": 15, "max_size": 23, "min_size": 8},
+
+        {"path": [2, 20], "id": "summary_01", "box": [0, 0, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_02", "box": [0, 50, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_03", "box": [0, 100, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_04", "box": [0, 150, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_05", "box": [0, 200, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_06", "box": [0, 250, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_07", "box": [0, 300, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_08", "box": [0, 350, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_09", "box": [0, 400, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 20], "id": "summary_10", "box": [0, 450, 512, 62], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left", "valign": "top"},
+
+        {"path": [2, 21], "id": "summary_11", "box": [0, 0, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_12", "box": [0, 50, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_13", "box": [0, 100, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_14", "box": [0, 150, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_15", "box": [0, 200, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_16", "box": [0, 250, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_17", "box": [0, 300, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"},
+        {"path": [2, 21], "id": "summary_18", "box": [0, 350, 512, 50], "background": 1, "foreground": 15, "max_size": 17, "min_size": 9, "padding": 2, "wrap": true, "max_lines": 3, "align": "left"}
+      ]
+    }
+  ]
+}

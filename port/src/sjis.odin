@@ -66,9 +66,15 @@ ASCII_PUNCT := [?]struct {
 }
 
 // UTF-8 text as the game's bytes. Unmappable characters become '?' and are
-// counted in `missing`. With `ascii_punct`, curly quotes, dashes and the
-// ellipsis are written as ASCII.
-sjis_encode :: proc(s: string, ascii_punct: bool, allocator := context.allocator) -> (out: []u8, missing: int) {
+// counted in `missing`. `custom` maps characters supplied by a runtime font
+// pack to otherwise unused one- or two-byte codes. With `ascii_punct`, curly
+// quotes, dashes and the ellipsis are written as ASCII.
+sjis_encode_mapped :: proc(
+	s: string,
+	ascii_punct: bool,
+	custom: map[rune]u16,
+	allocator := context.allocator,
+) -> (out: []u8, missing: int) {
 	buf := make([dynamic]u8, 0, len(s) + 1, allocator)
 	outer: for r in s {
 		switch {
@@ -96,6 +102,14 @@ sjis_encode :: proc(s: string, ascii_punct: bool, allocator := context.allocator
 				}
 			}
 		}
+		if code, found := custom[r]; found {
+			if code <= 0xff {
+				append(&buf, u8(code))
+			} else {
+				append(&buf, u8(code >> 8), u8(code))
+			}
+			continue
+		}
 		if r <= 0xffff {
 			k, found := slice.binary_search_by(SJIS_ENCODE[:], u32(r), proc(e, key: u32) -> slice.Ordering {
 				return slice.cmp(e >> 16, key)
@@ -110,6 +124,10 @@ sjis_encode :: proc(s: string, ascii_punct: bool, allocator := context.allocator
 		missing += 1
 	}
 	return buf[:], missing
+}
+
+sjis_encode :: proc(s: string, ascii_punct: bool, allocator := context.allocator) -> (out: []u8, missing: int) {
+	return sjis_encode_mapped(s, ascii_punct, nil, allocator)
 }
 
 // Whether the game's bytes hold Japanese prose: a hiragana, katakana or kanji

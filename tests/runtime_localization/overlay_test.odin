@@ -85,6 +85,7 @@ disc_hook_in_place_relocation_and_failures :: proc(t: ^testing.T) {
 	mod :: base + "\\mod"
 	files :: mod + "\\files\\JPN.CVM"
 	replacement :: files + "\\TEST.BIN"
+	root_replacement :: mod + "\\files\\TAIL.BIN"
 	if !testing.expect(t, !os.exists(base), "overlay fixture path must not already exist") {return}
 	if !testing.expect(t, os.make_directory_all(files) == nil) {return}
 	defer os.remove_all(base)
@@ -95,6 +96,9 @@ disc_hook_in_place_relocation_and_failures :: proc(t: ^testing.T) {
 	small := make([]u8, 1300, context.temp_allocator)
 	for &b in small {b = 0xa5}
 	if !testing.expect(t, os.write_entire_file(replacement, small) == nil) {return}
+	root_data := make([]u8, TEST_SECTOR, context.temp_allocator)
+	for &b in root_data {b = 0x7b}
+	if !testing.expect(t, os.write_entire_file(root_replacement, root_data) == nil) {return}
 	if !testing.expect(t, port.overlay_install(image_path, []string{mod})) {return}
 	d, opened := disc.open(image_path)
 	if !testing.expect(t, opened && d.volume == 200) {return}
@@ -104,6 +108,7 @@ disc_hook_in_place_relocation_and_failures :: proc(t: ^testing.T) {
 	testing.expect(t, disc.read(&d, 55, block[:]))
 	testing.expect(t, test_le32(block[:], 68 + 10) == 1300)
 	testing.expect(t, disc.read(&d, 61, block[:]) && block[0] == 0x22)
+	testing.expect(t, disc.read(&d, 160, block[:]) && block[0] == 0x7b && block[TEST_SECTOR - 1] == 0x7b)
 	testing.expect(t, !port.overlay_read(&d, 60, block[:], false))
 	other, other_opened := disc.open(other_path)
 	if testing.expect(t, other_opened) {
@@ -112,6 +117,33 @@ disc_hook_in_place_relocation_and_failures :: proc(t: ^testing.T) {
 	}
 	disc.close(&d)
 	port.overlay_reset()
+
+	// A selected language directory is a later overlay and wins over common files.
+	language_mod :: mod + "\\languages\\fr"
+	language_files :: language_mod + "\\files\\JPN.CVM"
+	language_replacement :: language_files + "\\TEST.BIN"
+	language_root_replacement :: language_mod + "\\files\\TAIL.BIN"
+	if !testing.expect(t, os.make_directory_all(language_files) == nil) {return}
+	localized := make([]u8, 1300, context.temp_allocator)
+	for &b in localized {b = 0x4c}
+	if !testing.expect(t, os.write_entire_file(language_replacement, localized) == nil) {return}
+	localized_root := make([]u8, TEST_SECTOR, context.temp_allocator)
+	for &b in localized_root {b = 0x3c}
+	if !testing.expect(t, os.write_entire_file(language_root_replacement, localized_root) == nil) {return}
+	if !testing.expect(t, os.write_entire_file(image_path, image) == nil) {return}
+	if !testing.expect(t, port.overlay_install(image_path, []string{mod, language_mod})) {return}
+	d, opened = disc.open(image_path)
+	if !testing.expect(t, opened) {return}
+	testing.expect(t, disc.read(&d, 60, block[:]) && block[0] == 0x4c && block[1299] == 0x4c)
+	testing.expect(t, disc.read(&d, 160, block[:]) && block[0] == 0x3c)
+	disc.close(&d)
+	port.overlay_reset()
+
+	// Outer ISO replacements are fail-closed unless their size is unchanged.
+	if !testing.expect(t, os.write_entire_file(root_replacement, small) == nil) {return}
+	testing.expect(t, !port.overlay_install(image_path, []string{mod}))
+	testing.expect(t, disc.read_hook == nil)
+	if !testing.expect(t, os.write_entire_file(root_replacement, root_data) == nil) {return}
 
 	large := make([]u8, 3 * TEST_SECTOR, context.temp_allocator)
 	for &b in large {b = 0x5a}

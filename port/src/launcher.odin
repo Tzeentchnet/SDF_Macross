@@ -80,7 +80,7 @@ text_choices :: proc(mods: []Loc_Mod) -> []Text_Choice {
 			if info == "" {
 				info = lang != "" ? fmt.aprintf("localization/%s/strings.csv, column '%s'.", m.id, lang) : fmt.aprintf("localization/%s: replacement files only.", m.id)
 			}
-			label := len(m.languages) > 1 && lang != "" ? fmt.aprintf("%s (%s)", m.name, lang) : m.name
+			label := len(m.languages) > 1 && lang != "" ? fmt.aprintf("[%s] %s - %s", lang, loc_language_name(m, lang), m.name) : m.name
 			append(&out, Text_Choice{label = label, mod = m.id, lang = lang, info = info})
 		}
 	}
@@ -210,9 +210,11 @@ fill :: proc(px: []u32, x, y, w, h: int, c: u32) {
 @(private = "file")
 draw_text :: proc(px: []u32, x, y: int, s: string, c: u32, scale := GLYPH, max_chars := 1000) {
 	n := 0
-	for i in 0 ..< len(s) {
+	for r in s {
 		if n >= max_chars {break}
-		core.font_glyph(px, LW, s[i], x + n * core.FONT_GLYPH * scale, y, c, scale)
+		if r < 0x80 {
+			core.font_glyph(px, LW, u8(r), x + n * core.FONT_GLYPH * scale, y, c, scale)
+		}
 		n += 1
 	}
 }
