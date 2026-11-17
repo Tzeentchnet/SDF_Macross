@@ -14,7 +14,7 @@ code, or a translated image. You must provide your own matching disc image.
 |---|---|
 | Windows x86-64 native build | Working |
 | Software renderer | Compatibility fallback; ~31 FPS on the animated main menu after focused fast paths |
-| Vulkan renderer | Recommended; deterministic GS memory ordering and 59.9 FPS on the tested main menu |
+| Vulkan renderer | Recommended; deterministic GS memory ordering and 59.9 FPS on the tested main menu and scripted first-mission route |
 | Output upscaling | FSR 1 EASU + RCAS or linear scaling on Vulkan |
 | Audio | Adaptive slow-host pacing plus ordered SPU2 block-transfer capture; no severe jumps in the deterministic menu capture |
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |

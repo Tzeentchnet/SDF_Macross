@@ -148,6 +148,35 @@ rejection reduce that cost but cannot make the menu full speed. Vulkan is
 therefore the default and recommendation. Existing explicit player settings
 retain their normal precedence and are not silently rewritten.
 
+### First-mission VU1 and Vulkan workload
+
+The game uploads VU1 microprograms through VIF `MPG` at runtime; they are not
+present in the executable's `.vutext`. Before capture, the deterministic first
+mission spent roughly 37-39 ms per frame in interpreted VU1 work and ran at
+about 23-25 FPS at Vulkan 1x, 2x, and 2x with FSR 1. Resolution was secondary.
+
+A private local capture of the scripted mission and action-heavy player route
+contains 71 VU1 programs and 5,900 instruction pairs. Compiling it reduced VU1
+work to roughly 2.5-5 ms. The expanded set passed compiled-versus-interpreted
+comparison through all 15,000 scripted frames, and a repeated miss-capture run
+added no bytes. This proves coverage only for that route; captures are derived
+game code, remain ignored, and are not distributed.
+
+The remaining frame-8700 hitch came from an over-conservative Vulkan texture
+hazard. An 8x8 PSMT4 texture at the final 256-byte local-memory block was
+reported as wrapping from page 511 into framebuffer page 0 merely because its
+base was not page-aligned. One profiled frame consequently recorded 9,041
+draws, 18,230 global barriers, and 8,826 redundant snapshots before the next
+frame waited about 76 ms on its fence.
+
+Texture page ranges now account for the swizzled blocks actually reached in
+the last page. On the same route, the corresponding frame records 247 draws,
+610 barriers, and no snapshot for that texture. Frame 8700 improved from 39.9
+to 59.9 FPS; its 300-frame work report fell from 18.01 ms average / 81.95 ms
+p95 to 5.48 / 7.77 ms, with presentation falling from 9.87 to 0.23 ms.
+Windowed Vulkan 1x linear then held 59.9-60.0 FPS at frames 8100, 8400, 8700,
+9000, 12000, and 14700 with 100% audio speed and correct captured images.
+
 The host estimates sustained emulation speed over disjoint four-field groups
 and feeds it to the existing cubic audio resampler. A single moderately slow
 group is treated as scheduling jitter unless the next group is also slow;
@@ -227,8 +256,8 @@ temporal jitter/history, camera transforms, reactive masks, or UI separation.
 It also lacks the presentation pacing and latency integration required for
 generated frames. AMD's integration guide warns that missing motion vectors
 cause ghosting and that poor temporal inputs amplify artifacts in interpolated
-frames. Frame generation would also be the wrong first optimization while
-real frames in heavy Vulkan scenes remain below 60 FPS.
+frames. Frame generation would also be the wrong substitute for validating and
+optimizing real frames throughout every mission.
 
 The public projects surveyed do not establish a PS2 precedent for those
 features:
@@ -312,7 +341,8 @@ parsers, and successful native runs. Important limits remain:
 
 - a 600-frame boot run is not a full compatibility test;
 - significant IOP code is still interpreted;
-- runtime-created VU microcode has not yet been captured for static inclusion;
+- the private first-mission VU1 capture is not distributed and does not cover
+  unvisited routes, missions, or effects;
 - one SIF call is unimplemented;
 - model packet semantics are not yet sufficiently decoded for Blender; and
 - several authoring, mission, collision, and animation fields remain unknown.

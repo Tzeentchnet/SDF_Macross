@@ -138,6 +138,12 @@ it; disable those features when using an externally patched executable.
   provenance; missing legacy provenance is only a warning, not proof of
   freshness. A missing generated configuration also produces a warning.
   Rerun setup after changing the disc, framework, patches, or configuration.
+- VU1 programs uploaded through runtime VIF `MPG` are absent from the ELF.
+  `tools\setup.ps1 -Vu1Capture <file>` can compile a private local capture into
+  generated source. The scripted first-mission/action route currently
+  converges at 71 programs and passes a 15,000-frame VU equivalence run, but
+  unvisited programs still use the interpreter. Capture files contain
+  disc-derived code and must remain local.
 - The source image path is written to ignored `local.tsv`; moving the image
   requires rerunning setup.
 - Recompilation is tied to executable addresses. A different region or

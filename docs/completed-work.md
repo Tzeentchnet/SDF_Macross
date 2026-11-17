@@ -197,6 +197,16 @@ This file is the archive for finished tasks. Active work belongs in
   specializations and read-only early depth rejection, while Vulkan held
   59.9 FPS with 100% audio at both 1x FSR 1 and 4x linear scaling. Vulkan is
   now the default; software remains an explicit compatibility fallback.
+- [x] Captured and locally compiled 71 runtime-uploaded VU1 programs (5,900
+  instruction pairs) for the scripted first-mission/action route. The capture
+  converged without growth and passed compiled-versus-interpreted comparison
+  through 15,000 frames; broader mission coverage remains open.
+- [x] Replaced the Vulkan texture hazard tracker's unconditional
+  non-page-aligned overrun with block-accurate swizzled texture spans. This
+  removed 8,826 redundant snapshots from the profiled worst frame and raised
+  frame 8700 from 39.9 to 59.9 FPS. The clean 15,000-frame Vulkan 1x linear
+  route held 59.9-60.0 FPS at every recorded gameplay checkpoint with 100%
+  audio speed.
 - [x] Surveyed PCSX2, RPCS3, Xenia, RT64/Zelda64Recomp, AMD FSR 3, and NVIDIA
   Streamline. Documented the missing temporal inputs and pacing work instead
   of exposing nonfunctional FSR 3, DLSS, or frame-generation options.

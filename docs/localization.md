@@ -71,10 +71,10 @@ launcher edit for that run.
 The launcher controls `SW`, `SCALE`, `UPSCALER`, `LOC`, `LANG`, `SUBTITLES`,
 `FULLSCREEN`, and `LAUNCHER`. `UPSCALER` is `linear` or `fsr1`; it affects the
 Vulkan presentation path only. `LOC` is a mod directory name and `LANG` is its
-selected CSV language column. The checked-in repository settings and built-in
-defaults select software rendering, scale 1, and FSR 1 for a later switch to
-Vulkan. The settings and controller features are not a substitute for in-game
-compatibility testing.
+selected CSV language column. The checked-in repository settings select
+Vulkan, scale 1, and FSR 1; software remains an explicit compatibility
+fallback. The settings and controller features are not a substitute for
+in-game compatibility testing.
 
 ## Subtitles
 
