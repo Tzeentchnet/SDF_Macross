@@ -191,7 +191,7 @@ texture again, and split the draw stream. A steady movie frame consequently
 recorded 1,120 uploads, 1,120 decodes, 1,121 draws, and 3,364 global barriers.
 It ran at roughly 44-49 FPS and reduced adaptive audio speed to 74-82%.
 
-At scales 1x and 2x, complete uploads to the observed Sofdec scratch texture
+At scales 1x through 3x, complete uploads to the observed Sofdec scratch texture
 (PSMCT32, base pointer 13456, buffer width 1, 16x16 pixels) now retain
 immutable pixels in the slot's upload ring for the immediately following,
 non-overlapping textured draw. Consecutive replacements can then share one
@@ -205,9 +205,13 @@ no texture-decode dispatch, and six global barriers per frame.
 
 The scale-1 Vulkan output at movie frame 1500 is pixel-identical to both the
 unbatched Vulkan path and the software GS. The focused hardware-GS regression
-also compares unique replacement tiles bit for bit at scales 1x and 2x. The
-optimized 300-frame movie interval holds 60.0 FPS, 5.35 ms average work,
-8.54 ms p95, 0.23 ms presentation, and 100% audio speed.
+also compares unique replacement tiles bit for bit at scales 1x through 3x.
+At the odd 3x scale, raster interpolation can place a 1:1 sprite coordinate
+just below its integer texel boundary, so the direct-upload nearest sampler
+applies a bias far smaller than one GS UV fixed-point step before flooring.
+The optimized 3x + FSR 1 movie interval ending at frame 1500 holds 59.9 FPS,
+5.19 ms average work, 8.24 ms p95, 0.21 ms presentation, 100% audio speed,
+and zero active-movie dry or dropped audio batches.
 
 The host estimates sustained emulation speed over disjoint four-field groups
 and feeds it to the existing cubic audio resampler. A single moderately slow

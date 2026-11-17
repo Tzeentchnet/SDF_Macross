@@ -215,9 +215,11 @@ This file is the archive for finished tasks. Active work belongs in
   movie's 1,120 repeated 16x16 texture replacements through immutable upload
   data and one final local-memory write, reducing a steady frame from 1,121
   draws and 3,364 barriers to two draws and six barriers. Scale-1 output is
-  bit-identical to the software GS, and the movie now holds 60 FPS with 100%
-  audio speed. Restricted the path to the exact Sofdec scratch texture after
-  the broader guard admitted gameplay uploads.
+  pixel-identical to the software GS, replacement-tile regression output is
+  bit-identical at scales 1x through 3x, and a direct-sampler boundary
+  correction makes the odd 3x scale safe. The 3x + FSR 1 movie now holds
+  59.9 FPS with 100% audio speed. Restricted the path to the exact Sofdec
+  scratch texture after the broader guard admitted gameplay uploads.
 - [x] Corrected FSR 1 presentation into Windows `B8G8R8A8` swapchains by
   packing the final RCAS output as BGRA. Internal software and Vulkan frames
   were already identical; the error affected only the presented window and
