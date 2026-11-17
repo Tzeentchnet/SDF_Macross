@@ -7,7 +7,9 @@ param(
 
     [switch]$ExactDisc,
 
-    [switch]$AllowPatchedImage
+    [switch]$AllowPatchedImage,
+
+    [string]$Vu1Capture
 )
 
 Set-StrictMode -Version Latest
@@ -17,6 +19,16 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Lock = Get-Content -LiteralPath (Join-Path $Root "recomp.lock.json") -Raw |
     ConvertFrom-Json
 $ImagePath = (Resolve-Path -LiteralPath $Image).Path
+$Vu1CapturePath = $null
+if ($Vu1Capture) {
+    $Vu1CapturePath = (Resolve-Path -LiteralPath $Vu1Capture).Path
+    if (-not (Test-Path -LiteralPath $Vu1CapturePath -PathType Leaf)) {
+        throw "VU1 capture is not a file: $Vu1CapturePath"
+    }
+    if ($Vu1CapturePath.IndexOfAny([char[]]"`t`r`n") -ge 0) {
+        throw "VU1 capture path contains a tab or newline."
+    }
+}
 $FrameworkPath = Join-Path $Root ".deps\ps-recomp"
 $ToolRoot = Join-Path $Root ".tools"
 $BuildRoot = Join-Path $Root ".build"
@@ -154,6 +166,9 @@ $TemplateFingerprint = (Get-FileHash -LiteralPath $Template -Algorithm SHA256).H
 $ConfigText = Get-Content -LiteralPath $Template -Raw
 if ((Get-FileHash -LiteralPath $Template -Algorithm SHA256).Hash -ne $TemplateFingerprint) {
     throw "Recompiler configuration changed during setup; retry."
+}
+if ($null -ne $Vu1CapturePath) {
+    $ConfigText += "vu1_capture`t$Vu1CapturePath`n"
 }
 $ConfigText += "disc`t$ImagePath`n"
 [System.IO.File]::WriteAllText($RecompConfig, $ConfigText)

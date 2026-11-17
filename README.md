@@ -20,6 +20,7 @@ code, or a translated image. You must provide your own matching disc image.
 | Original Japanese image | Reaches a bounded 600-frame compatibility run |
 | English-patched image | Recompiles and reaches the same 600-frame run |
 | Static EE recompilation | 8,684 functions in 15 generated packages |
+| Runtime VU1 programs | Private local captures can be compiled; the scripted first-mission route covers 71 programs |
 | Runtime localization | 47 project-authored English system strings; optional local fan translation |
 | Patched-image translation | External, optional, and reproducibly pinned |
 | Full-game compatibility | Not yet established |
@@ -96,6 +97,34 @@ To regenerate source without linking the final executable:
 ```powershell
 .\tools\setup.ps1 -Image "F:\path\to\Macross.iso" -RecompileOnly
 ```
+
+The game uploads VU1 graphics microprograms at runtime which are not present in
+the ELF. An uncaptured program remains correct but runs in the interpreter.
+To capture programs from the missions you play, then compile them into a local
+release:
+
+```powershell
+$env:MACROSS_VU_CAPTURE = "1"
+$env:MACROSS_VU1_CAPTURE = Join-Path $PWD ".local\vu1-capture.bin"
+.\port\macross-recomp.exe --play
+Remove-Item Env:\MACROSS_VU_CAPTURE, Env:\MACROSS_VU1_CAPTURE
+
+.\tools\setup.ps1 `
+  -Image "F:\path\to\Macross.iso" `
+  -Vu1Capture ".local\vu1-capture.bin"
+```
+
+Close the game after visiting the scenes to capture. `VU_CAPTURE=1`
+intentionally interprets every visited program while recording it. After
+rebuilding, use `VU_CAPTURE=miss` with the same capture path to run known
+programs as compiled code and append only newly encountered programs. Do not
+run concurrent capture sessions against one file.
+
+The capture contains code derived from the player's disc, remains ignored
+under `.local\`, and must not be committed or redistributed. Re-run setup
+after extending it so the newly seen programs are included. Unknown programs
+still fall back to the interpreter, so one route's converged capture is not
+evidence of full-game coverage.
 
 For port-source edits after setup, rebuild using the existing generated code:
 

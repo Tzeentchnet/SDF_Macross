@@ -539,7 +539,9 @@ main :: proc() {
             Write-TestText (Join-Path $f.Root "tools\inspect_game.py") "print('fixture image verified')`n"
             Write-TestText (Join-Path $f.Root "port\src\main.odin") "package main`nmain :: proc() {}`n"
             $image = Join-Path $f.Root "fixture.iso"
+            $capture = Join-Path $f.Root "VU1 capture.bin"
             Write-TestText $image "synthetic fixture`n"
+            Write-TestText $capture "synthetic VU1 capture`n"
             $fixtureLock = [ordered]@{
                 framework = @{ repository = $f.Framework; commit = $f.Lock.framework.commit }
                 odin = @{ tag = "fixture"; asset = "unused.zip"; url = "unused"; sha256 = "unused" }
@@ -554,12 +556,15 @@ main :: proc() {
             try {
                 [void](New-Item -ItemType Junction -Path $junction -Target $odinDist)
                 $env:TEMP, $env:TMP, $env:PYTHONDONTWRITEBYTECODE = $scratch, $scratch, "1"
-                & (Join-Path $f.Root "tools\setup.ps1") -Image $image 2>&1 |
+                & (Join-Path $f.Root "tools\setup.ps1") -Image $image -Vu1Capture $capture 2>&1 |
                     ForEach-Object { Write-Host $_ }
                 Assert-Test (Test-Path -LiteralPath (Join-Path $f.Root "port\src\rec\.framework-provenance.json")) `
                     "Fresh setup did not record generated-source provenance."
                 Assert-Test (Test-Path -LiteralPath (Join-Path $f.Root "port\macross-recomp.exe")) `
                     "Fresh setup did not build the fixture port."
+                $config = [System.IO.File]::ReadAllText((Join-Path $f.Root ".build\recomp.tsv"))
+                Assert-Test ($config.Contains("vu1_capture`t$([System.IO.Path]::GetFullPath($capture))`n")) `
+                    "Setup did not add the resolved VU1 capture to the generated configuration."
                 $checkout = Join-Path $f.Root ".deps\ps-recomp"
                 Assert-Test ([System.IO.File]::ReadAllText((Join-Path $checkout "recomp\flags.odin")) -match "patch_marker") `
                     "Setup built before applying the framework patches."
