@@ -3,6 +3,28 @@
 This file is the archive for finished tasks. Active work belongs in
 [`TODO.md`](TODO.md).
 
+## 2026-11-21 - Upstream framework refresh
+
+- [x] Rechecked all pinned upstreams. CRICMP and the external translation
+  tooling remain at their latest commits; Odin `dev-2026-11a` is newer, but
+  the updated framework and port still build with the reproducibly pinned
+  `dev-2026-10` toolchain.
+- [x] Advanced `ps-recomp` by 193 upstream commits to
+  `20ed32d9056920652361020697f2be5481c8c3d5`.
+- [x] Removed nine superseded local framework patches after upstream adopted
+  their controller, disc hook, presentation, audio, software GS, and texture
+  tracking changes.
+- [x] Rebased the remaining Sofdec tile batching optimization onto the updated
+  Vulkan renderer and both fragment-shader paths.
+- [x] Built the port against the clean new upstream and the rebased patch, and
+  passed the upstream Vulkan GS comparison at scales 1x through 3x on NVIDIA.
+- [x] Passed the exact-original-disc 600-frame smoke on NVIDIA Vulkan with the
+  new build hash, 599 frames shown, no fallback, and an empty fatal field.
+- [x] Repeated the 600-frame check with the multilingual English table,
+  project-authored system English, subtitles, and 25 file overlays active;
+  3,107 strings loaded and the same frame, fallback, and fatal assertions
+  passed.
+
 ## 2026-11-16 - Disc identification and safety
 
 - [x] Identified the supported game as Japanese `SLPM-65405`.
@@ -21,7 +43,7 @@ This file is the archive for finished tasks. Active work belongs in
 - [x] Selected `plaught-armor/ps-recomp` with R5900 and Vulkan 1.3 support.
 - [x] Verified the selected commit was updated three days before selection,
   satisfying the one-month maintenance requirement.
-- [x] Pinned framework commit
+- [x] Initially pinned framework commit
   `8ab7c5b081fa59f761783787216b067d48120374`.
 - [x] Pinned Odin `dev-2026-10` and its Windows archive SHA-256.
 - [x] Recorded GPL-3.0 licensing and added the repository license.
@@ -151,10 +173,11 @@ This file is the archive for finished tasks. Active work belongs in
 
 ## 2026-11-16 - Build and validation hardening
 
-- [x] Pinned the ordered framework patch series, including padman handling
-  and the disc-read hook. Setup checks patch state and records generated-source
-  provenance; incremental builds check that provenance. Legacy generated
-  source without it remains usable only with a warning.
+- [x] At the initial pin, recorded an ordered framework patch series that
+  included padman handling and the disc-read hook. Setup checks patch state
+  and records generated-source provenance; incremental builds check that
+  provenance. Legacy generated source without it remains usable only with a
+  warning.
 - [x] Hardened ELF disassembly with complete file-backed range checks,
   corrected R5900 decoding and jump targets, and per-word `.word` fallback;
   added synthetic ELF tests.

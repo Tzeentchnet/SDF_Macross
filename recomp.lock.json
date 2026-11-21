@@ -2,9 +2,9 @@
   "framework": {
     "name": "ps-recomp",
     "repository": "https://github.com/plaught-armor/ps-recomp.git",
-    "commit": "8ab7c5b081fa59f761783787216b067d48120374",
-    "commitDate": "2026-11-13T11:31:25Z",
-    "verifiedAt": "2026-11-16T09:32:11Z",
+    "commit": "20ed32d9056920652361020697f2be5481c8c3d5",
+    "commitDate": "2026-11-21T22:55:32Z",
+    "verifiedAt": "2026-11-21T22:56:40Z",
     "license": "GPL-3.0"
   },
   "odin": {

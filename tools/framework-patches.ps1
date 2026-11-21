@@ -364,13 +364,15 @@ function Invoke-FrameworkPatches {
         $states = @($result.StdOut.Trim())
         foreach ($patch in $patches) {
             $result = Invoke-FrameworkGit -Arguments @(
-                "-C", $FrameworkPath, "apply", "--cached", "--check", "--ignore-whitespace", "--", $patch.FullName
+                "-C", $FrameworkPath, "apply", "--cached", "--check", "--unidiff-zero",
+                "--ignore-whitespace", "--", $patch.FullName
             ) -Environment $seriesEnvironment
             if ($result.ExitCode -ne 0) {
                 throw "Framework patch $($patch.Name) conflicts with the ordered series at $commit$(Get-FrameworkGitError $result)"
             }
             $result = Invoke-FrameworkGit -Arguments @(
-                "-C", $FrameworkPath, "apply", "--cached", "--ignore-whitespace", "--", $patch.FullName
+                "-C", $FrameworkPath, "apply", "--cached", "--unidiff-zero",
+                "--ignore-whitespace", "--", $patch.FullName
             ) -Environment $seriesEnvironment
             if ($result.ExitCode -ne 0) {
                 throw "Could not preflight framework patch $($patch.Name)$(Get-FrameworkGitError $result)"
@@ -442,7 +444,8 @@ function Invoke-FrameworkPatches {
             throw "Could not construct the complete framework patch$(Get-FrameworkGitError $result)"
         }
         $result = Invoke-FrameworkGit -Arguments @(
-            "-C", $FrameworkPath, "apply", "--check", "--ignore-whitespace", "--", $combined
+            "-C", $FrameworkPath, "apply", "--check", "--unidiff-zero",
+            "--ignore-whitespace", "--", $combined
         )
         if ($result.ExitCode -ne 0) {
             throw "Framework patch series conflicts with the working tree$(Get-FrameworkGitError $result)"
@@ -467,7 +470,8 @@ function Invoke-FrameworkPatches {
 
         try {
             $result = Invoke-FrameworkGit -Arguments @(
-                "-C", $FrameworkPath, "apply", "--ignore-whitespace", "--", $combined
+                "-C", $FrameworkPath, "apply", "--unidiff-zero",
+                "--ignore-whitespace", "--", $combined
             )
             if ($result.ExitCode -ne 0) {
                 throw "Could not apply the complete framework patch series$(Get-FrameworkGitError $result)"

@@ -121,6 +121,10 @@ configuration also produces a warning. Rerun full setup after changing the
 image, framework, patch series, or recompilation configuration, and to
 replace legacy output with verified provenance.
 
+After pulling a framework-pin update, remove only the ignored
+`.deps\ps-recomp` checkout before rerunning setup so it clones the newly
+locked commit. Generated game source and runtime data are stored elsewhere.
+
 ## Run
 
 ```powershell

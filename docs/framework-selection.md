@@ -11,16 +11,17 @@ The selected framework had to:
 5. be pin-able for reproducible builds.
 
 The selection was performed on **2026-11-16**, so the maintenance cutoff was
-2026-10-16.
+2026-10-16. Upstream maintenance was rechecked on **2026-11-21** before the
+current pin was adopted.
 
 ## Selected framework: `ps-recomp`
 
 | Property | Value |
 |---|---|
 | Repository | <https://github.com/plaught-armor/ps-recomp> |
-| Pinned commit | `8ab7c5b081fa59f761783787216b067d48120374` |
-| Commit date | 2026-11-13 11:31:25 UTC |
-| Age at selection | 3 days |
+| Pinned commit | `20ed32d9056920652361020697f2be5481c8c3d5` |
+| Commit date | 2026-11-21 22:55:32 UTC |
+| Age at latest verification | Less than one day |
 | License | GPL-3.0 |
 | Implementation language | Odin |
 | Guest architectures | PS1 R3000A and PS2 R5900 |
@@ -29,7 +30,10 @@ The selection was performed on **2026-11-16**, so the maintenance cutoff was
 | Native targets relevant here | Windows x86-64 |
 
 The commit date satisfies the one-month maintenance requirement with
-substantial margin. The exact evidence and toolchain are recorded in
+substantial margin. The current pin incorporates 193 upstream commits after
+the initial selection, including the formerly local controller, disc hook,
+presentation, audio, software GS, and texture tracking changes. The exact
+evidence and toolchain are recorded in
 [`recomp.lock.json`](../recomp.lock.json).
 
 ## Why it fits this game

@@ -4,7 +4,7 @@
 // Used for art that holds Japanese text (title cards, menus: TIM2 textures
 // inside JPN.CVM's .CMP files), and for audio.
 //
-// The runtime calls overlay_read (disc.read_hook, a framework patch) after
+// The runtime calls overlay_read through disc.read_hook after
 // every read of the image's sectors. The overlay serves:
 //
 //   * replaced files' bytes over the sectors they occupy, and

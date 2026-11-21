@@ -39,8 +39,8 @@ Local tools used to establish the findings:
 
 | Source | Pinned/reference revision | Used for | License/status |
 |---|---|---|---|
-| [`plaught-armor/ps-recomp`](https://github.com/plaught-armor/ps-recomp) | `8ab7c5b081fa59f761783787216b067d48120374`, 2026-11-13 | R5900 static recompilation and PS2 Vulkan runtime | GPL-3.0 |
-| [AMD FidelityFX FSR 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR/tree/a21ffb8f6c13233ba336352bdff293894c706575) | `a21ffb8f6c13233ba336352bdff293894c706575`, v1.0.2 | EASU/RCAS shader headers used by Vulkan presentation | MIT; license vendored with the framework patch |
+| [`plaught-armor/ps-recomp`](https://github.com/plaught-armor/ps-recomp) | `20ed32d9056920652361020697f2be5481c8c3d5`, 2026-11-21 | R5900 static recompilation and PS2 Vulkan runtime | GPL-3.0 |
+| [AMD FidelityFX FSR 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR/tree/a21ffb8f6c13233ba336352bdff293894c706575) | `a21ffb8f6c13233ba336352bdff293894c706575`, v1.0.2 | EASU/RCAS shader headers used by Vulkan presentation | MIT; license vendored with the framework |
 | [`chummy778/Macross-PS2-Fan-Translation-Tooling`](https://github.com/chummy778/Macross-PS2-Fan-Translation-Tooling) | `4339a4485149a52aa2b0633e093511d452885fb5` | Existing English translation, text-format and patch-path corroboration | No explicit license found; external checkout only |
 | [`zeesworth/cricmp`](https://github.com/zeesworth/cricmp) | `5faf238dea4157ca6ff72c4b1342bfb90ed0b590` | CRICMP decompression/recompression | LGPL-2.1 |
 | [XeNTaX Macross PS2 model discussion archive](https://github.com/XeNTaXBackup/XeNTaXBackup.github.io/blob/main/markdown/Macross%20PS2%20mdl_26090.md) | Archived 2022-2023 discussion | Corroborated GFX2OBJ offsets, 32-byte names, 176-byte nodes, VIF submeshes, and hierarchy importance | Research discussion; no code copied |

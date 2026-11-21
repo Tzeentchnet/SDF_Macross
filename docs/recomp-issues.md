@@ -35,12 +35,11 @@ An earlier compatibility run reported:
 SIF server 80000100 fno 20
 ```
 
-The first [framework patch](../patches/ps-recomp/0001-padman-button-mask-and-warning-level.patch)
-adds padman command `0x14` (`20`) handling for `SetWarningLevel` and fills the
-controller capability mask. The compatibility label can describe a padman
-subcommand as well as an RPC function number; the observed call path and
-behavior still need in-game verification. Suppressing a message without
-reproducing the operation is not a fix.
+The pinned framework now handles padman command `0x14` (`20`) for
+`SetWarningLevel` and fills the controller capability mask. The compatibility
+label can describe a padman subcommand as well as an RPC function number; the
+observed call path and behavior still need in-game verification. Suppressing a
+message without reproducing the operation is not a fix.
 
 ### Interpreted IOP code
 

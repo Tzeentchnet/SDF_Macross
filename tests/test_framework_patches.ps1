@@ -55,7 +55,12 @@ function Assert-Throws {
 }
 
 function New-Fixture {
-    param([string]$Name, [switch]$Dependent, [switch]$UnicodeName)
+    param(
+        [string]$Name,
+        [switch]$Dependent,
+        [switch]$UnicodeName,
+        [switch]$ZeroContext
+    )
 
     $root = Join-Path $TestRoot $Name
     $framework = Join-Path $root "framework checkout"
@@ -79,9 +84,12 @@ function New-Fixture {
 
     $patch1 = Join-Path $patchDir "0001-first.patch"
     $patch2 = Join-Path $patchDir "0002-second.patch"
+    $diffArguments = @("diff", "--binary", "--full-index")
+    if ($ZeroContext) { $diffArguments += "--unified=0" }
+    $diffArguments += "--"
     Write-TestText (Join-Path $patchDir "series") "0001-first.patch`n0002-second.patch`n"
     Write-TestText $alpha "header`nalpha-first`ntail`n"
-    Write-TestText $patch1 (Invoke-TestGit $framework @("diff", "--binary", "--full-index", "--"))
+    Write-TestText $patch1 (Invoke-TestGit $framework $diffArguments)
     [void](Invoke-TestGit $framework @("add", "--all"))
     $expectedAlpha = "header`nalpha-first`ntail`n"
     if ($Dependent) {
@@ -89,7 +97,7 @@ function New-Fixture {
         Write-TestText $alpha $expectedAlpha
     }
     Write-TestText $beta "header`nbeta-second`ntail`n"
-    Write-TestText $patch2 (Invoke-TestGit $framework @("diff", "--binary", "--full-index", "--"))
+    Write-TestText $patch2 (Invoke-TestGit $framework $diffArguments)
     [void](Invoke-TestGit $framework @("reset", "--hard", "--quiet", "HEAD"))
 
     Write-TestText (Join-Path $root "tools\recomp.tsv") "key`tvalue`nbackend`tr5900`n"
@@ -217,6 +225,13 @@ try {
 
     Invoke-Case "dependent patches and Unicode paths" {
         $f = New-Fixture "dependent" -Dependent -UnicodeName
+        Invoke-FrameworkPatches -Root $f.Root -FrameworkPath $f.Framework -Lock $f.Lock
+        Assert-FixtureApplied $f
+        Invoke-FrameworkPatches -Root $f.Root -FrameworkPath $f.Framework -Lock $f.Lock
+    }
+
+    Invoke-Case "zero-context patches" {
+        $f = New-Fixture "zero-context" -Dependent -ZeroContext
         Invoke-FrameworkPatches -Root $f.Root -FrameworkPath $f.Framework -Lock $f.Lock
         Assert-FixtureApplied $f
         Invoke-FrameworkPatches -Root $f.Root -FrameworkPath $f.Framework -Lock $f.Lock
